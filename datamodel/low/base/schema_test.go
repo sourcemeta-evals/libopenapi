@@ -2753,3 +2753,113 @@ description: A schema without $id`
 
 	assert.True(t, sch.Id.IsEmpty())
 }
+
+// TestSchema_Comment tests that the $comment field is correctly extracted
+func TestSchema_Comment(t *testing.T) {
+	yml := `type: object
+$comment: "This is a comment for schema authors"
+description: A pet schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "This is a comment for schema authors", sch.Comment.Value)
+	assert.NotNil(t, sch.Comment.KeyNode)
+	assert.NotNil(t, sch.Comment.ValueNode)
+}
+
+// TestSchema_Comment_Hash tests that $comment is included in the schema hash
+func TestSchema_Comment_Hash(t *testing.T) {
+	yml1 := `type: object
+$comment: "Comment A"
+description: Schema A`
+
+	yml2 := `type: object
+$comment: "Comment B"
+description: Schema A`
+
+	yml3 := `type: object
+description: Schema A`
+
+	var node1, node2, node3 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &node1)
+	_ = yaml.Unmarshal([]byte(yml2), &node2)
+	_ = yaml.Unmarshal([]byte(yml3), &node3)
+
+	var sch1, sch2, sch3 Schema
+	_ = low.BuildModel(node1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), node1.Content[0], nil)
+
+	_ = low.BuildModel(node2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), node2.Content[0], nil)
+
+	_ = low.BuildModel(node3.Content[0], &sch3)
+	_ = sch3.Build(context.Background(), node3.Content[0], nil)
+
+	hash1 := sch1.Hash()
+	hash2 := sch2.Hash()
+	hash3 := sch3.Hash()
+
+	// Different $comment values should produce different hashes
+	assert.NotEqual(t, hash1, hash2)
+	// Schema without $comment should differ from schema with $comment
+	assert.NotEqual(t, hash1, hash3)
+	assert.NotEqual(t, hash2, hash3)
+}
+
+// TestSchema_Vocabulary tests that the $vocabulary field is correctly extracted
+func TestSchema_Vocabulary(t *testing.T) {
+	yml := `type: object
+$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://json-schema.org/draft/2020-12/vocab/applicator": true
+  "https://json-schema.org/draft/2020-12/vocab/validation": false
+description: A meta-schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 3, sch.Vocabulary.Value.Len())
+	assert.NotNil(t, sch.Vocabulary.KeyNode)
+	assert.NotNil(t, sch.Vocabulary.ValueNode)
+}
+
+// TestSchema_ContentSchema tests that the contentSchema field is correctly extracted
+func TestSchema_ContentSchema(t *testing.T) {
+	yml := `type: string
+contentMediaType: application/json
+contentSchema:
+  type: object
+  properties:
+    name:
+      type: string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.ContentSchema.Value)
+	assert.NotNil(t, sch.ContentSchema.KeyNode)
+	assert.NotNil(t, sch.ContentSchema.ValueNode)
+}
