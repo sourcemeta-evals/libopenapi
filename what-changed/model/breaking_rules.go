@@ -306,6 +306,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			MultipleOf:            rule(false, true, false),
 			ContentEncoding:       rule(false, true, false),
 			ContentMediaType:      rule(false, true, false),
+			Comment:               rule(false, false, false), // $comment: non-breaking (developer-facing only)
+			ContentSchema:         rule(false, true, true),   // contentSchema: modification/removal is breaking
+			Vocabulary:            rule(true, true, true),    // $vocabulary: all changes are breaking (affects validation)
 			Default:               rule(false, true, false),
 			Const:                 rule(false, true, false),
 			Nullable:              rule(false, true, false),
@@ -397,9 +400,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 			Scopes:            rule(false, false, true),
-			Flow:              rule(true, true, true),   // Swagger 2.0
-			AuthorizationURL:  rule(true, true, true),   // Swagger 2.0
-			TokenURL:          rule(true, true, true),   // Swagger 2.0
+			Flow:              rule(true, true, true), // Swagger 2.0
+			AuthorizationURL:  rule(true, true, true), // Swagger 2.0
+			TokenURL:          rule(true, true, true), // Swagger 2.0
 			Deprecated:        rule(false, false, false),
 		},
 

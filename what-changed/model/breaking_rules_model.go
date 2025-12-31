@@ -163,6 +163,9 @@ type SchemaRules struct {
 	MultipleOf            *BreakingChangeRule `json:"multipleOf,omitempty" yaml:"multipleOf,omitempty"`
 	ContentEncoding       *BreakingChangeRule `json:"contentEncoding,omitempty" yaml:"contentEncoding,omitempty"`
 	ContentMediaType      *BreakingChangeRule `json:"contentMediaType,omitempty" yaml:"contentMediaType,omitempty"`
+	Comment               *BreakingChangeRule `json:"$comment,omitempty" yaml:"$comment,omitempty"`
+	ContentSchema         *BreakingChangeRule `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+	Vocabulary            *BreakingChangeRule `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
 	Default               *BreakingChangeRule `json:"default,omitempty" yaml:"default,omitempty"`
 	Const                 *BreakingChangeRule `json:"const,omitempty" yaml:"const,omitempty"`
 	Nullable              *BreakingChangeRule `json:"nullable,omitempty" yaml:"nullable,omitempty"`
@@ -257,9 +260,9 @@ type SecuritySchemeRules struct {
 	OAuth2MetadataUrl *BreakingChangeRule `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
 	Flows             *BreakingChangeRule `json:"flows,omitempty" yaml:"flows,omitempty"`
 	Scopes            *BreakingChangeRule `json:"scopes,omitempty" yaml:"scopes,omitempty"`
-	Flow              *BreakingChangeRule `json:"flow,omitempty" yaml:"flow,omitempty"`               // Swagger 2.0
+	Flow              *BreakingChangeRule `json:"flow,omitempty" yaml:"flow,omitempty"`                         // Swagger 2.0
 	AuthorizationURL  *BreakingChangeRule `json:"authorizationUrl,omitempty" yaml:"authorizationUrl,omitempty"` // Swagger 2.0
-	TokenURL          *BreakingChangeRule `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`       // Swagger 2.0
+	TokenURL          *BreakingChangeRule `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`                 // Swagger 2.0
 	Deprecated        *BreakingChangeRule `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
 }
 
