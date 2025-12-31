@@ -156,4 +156,3 @@ func TestSecurityScheme_MarshalYAMLInlineWithContext_Reference(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "$ref", yamlNode.Content[0].Value)
 }
-

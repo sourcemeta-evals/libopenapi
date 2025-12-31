@@ -49,8 +49,8 @@ func handleIndex(c *handleIndexConfig) error {
 
 		// Check for invalid sibling properties if strict validation is enabled
 		if c.compositionConfig.StrictValidation &&
-				c.idx.GetConfig().SpecInfo.VersionNumeric == 3.0 &&
-				sequenced.HasSiblingProperties {
+			c.idx.GetConfig().SpecInfo.VersionNumeric == 3.0 &&
+			sequenced.HasSiblingProperties {
 			siblingKeys := make([]string, 0, len(sequenced.SiblingProperties))
 			for key := range sequenced.SiblingProperties {
 				siblingKeys = append(siblingKeys, key)

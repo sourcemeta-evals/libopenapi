@@ -397,9 +397,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 			Scopes:            rule(false, false, true),
-			Flow:              rule(true, true, true),   // Swagger 2.0
-			AuthorizationURL:  rule(true, true, true),   // Swagger 2.0
-			TokenURL:          rule(true, true, true),   // Swagger 2.0
+			Flow:              rule(true, true, true), // Swagger 2.0
+			AuthorizationURL:  rule(true, true, true), // Swagger 2.0
+			TokenURL:          rule(true, true, true), // Swagger 2.0
 			Deprecated:        rule(false, false, false),
 		},
 
