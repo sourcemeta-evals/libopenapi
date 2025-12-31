@@ -2753,3 +2753,245 @@ description: A schema without $id`
 
 	assert.True(t, sch.Id.IsEmpty())
 }
+
+// TestSchema_Comment tests that $comment is parsed correctly
+func TestSchema_Comment(t *testing.T) {
+	yml := `type: object
+$comment: "This is a comment for the schema"
+description: A schema with a comment`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "This is a comment for the schema", sch.Comment.Value)
+	assert.NotNil(t, sch.Comment.KeyNode)
+	assert.NotNil(t, sch.Comment.ValueNode)
+}
+
+// TestSchema_Comment_Hash tests that $comment is included in the schema hash
+func TestSchema_Comment_Hash(t *testing.T) {
+	yml1 := `type: object
+$comment: "Comment A"
+description: Schema A`
+
+	yml2 := `type: object
+$comment: "Comment B"
+description: Schema A`
+
+	yml3 := `type: object
+description: Schema A`
+
+	var node1, node2, node3 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &node1)
+	_ = yaml.Unmarshal([]byte(yml2), &node2)
+	_ = yaml.Unmarshal([]byte(yml3), &node3)
+
+	var sch1, sch2, sch3 Schema
+	_ = low.BuildModel(node1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), node1.Content[0], nil)
+
+	_ = low.BuildModel(node2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), node2.Content[0], nil)
+
+	_ = low.BuildModel(node3.Content[0], &sch3)
+	_ = sch3.Build(context.Background(), node3.Content[0], nil)
+
+	hash1 := sch1.Hash()
+	hash2 := sch2.Hash()
+	hash3 := sch3.Hash()
+
+	// Different $comment values should produce different hashes
+	assert.NotEqual(t, hash1, hash2)
+	// Schema without $comment should differ from schema with $comment
+	assert.NotEqual(t, hash1, hash3)
+	assert.NotEqual(t, hash2, hash3)
+}
+
+// TestSchema_Comment_Empty tests that empty $comment is not set
+func TestSchema_Comment_Empty(t *testing.T) {
+	yml := `type: object
+description: A schema without $comment`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.True(t, sch.Comment.IsEmpty())
+}
+
+// TestSchema_ContentSchema tests that contentSchema is parsed correctly
+func TestSchema_ContentSchema(t *testing.T) {
+	yml := `type: string
+contentMediaType: application/json
+contentSchema:
+  type: object
+  properties:
+    name:
+      type: string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.ContentSchema.Value)
+	assert.NotNil(t, sch.ContentSchema.KeyNode)
+	assert.NotNil(t, sch.ContentSchema.ValueNode)
+
+	// Verify the nested schema
+	contentSch := sch.ContentSchema.Value.Schema()
+	assert.Equal(t, "object", contentSch.Type.Value.A)
+}
+
+// TestSchema_ContentSchema_Hash tests that contentSchema is included in the schema hash
+func TestSchema_ContentSchema_Hash(t *testing.T) {
+	yml1 := `type: string
+contentSchema:
+  type: object`
+
+	yml2 := `type: string
+contentSchema:
+  type: array`
+
+	yml3 := `type: string`
+
+	var node1, node2, node3 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &node1)
+	_ = yaml.Unmarshal([]byte(yml2), &node2)
+	_ = yaml.Unmarshal([]byte(yml3), &node3)
+
+	var sch1, sch2, sch3 Schema
+	_ = low.BuildModel(node1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), node1.Content[0], nil)
+
+	_ = low.BuildModel(node2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), node2.Content[0], nil)
+
+	_ = low.BuildModel(node3.Content[0], &sch3)
+	_ = sch3.Build(context.Background(), node3.Content[0], nil)
+
+	hash1 := sch1.Hash()
+	hash2 := sch2.Hash()
+	hash3 := sch3.Hash()
+
+	// Different contentSchema values should produce different hashes
+	assert.NotEqual(t, hash1, hash2)
+	// Schema without contentSchema should differ from schema with contentSchema
+	assert.NotEqual(t, hash1, hash3)
+	assert.NotEqual(t, hash2, hash3)
+}
+
+// TestSchema_ContentSchema_Empty tests that empty contentSchema is not set
+func TestSchema_ContentSchema_Empty(t *testing.T) {
+	yml := `type: string
+description: A schema without contentSchema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.True(t, sch.ContentSchema.IsEmpty())
+}
+
+// TestSchema_Vocabulary tests that $vocabulary is parsed correctly
+func TestSchema_Vocabulary(t *testing.T) {
+	yml := `$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://json-schema.org/draft/2020-12/vocab/applicator": true
+  "https://json-schema.org/draft/2020-12/vocab/validation": false`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.NotNil(t, sch.Vocabulary.KeyNode)
+	assert.NotNil(t, sch.Vocabulary.ValueNode)
+
+	// Verify the vocabulary entries
+	assert.Equal(t, 3, sch.Vocabulary.Value.Len())
+}
+
+// TestSchema_Vocabulary_Hash tests that $vocabulary is included in the schema hash
+func TestSchema_Vocabulary_Hash(t *testing.T) {
+	yml1 := `$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true`
+
+	yml2 := `$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": false`
+
+	yml3 := `type: object`
+
+	var node1, node2, node3 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &node1)
+	_ = yaml.Unmarshal([]byte(yml2), &node2)
+	_ = yaml.Unmarshal([]byte(yml3), &node3)
+
+	var sch1, sch2, sch3 Schema
+	_ = low.BuildModel(node1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), node1.Content[0], nil)
+
+	_ = low.BuildModel(node2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), node2.Content[0], nil)
+
+	_ = low.BuildModel(node3.Content[0], &sch3)
+	_ = sch3.Build(context.Background(), node3.Content[0], nil)
+
+	hash1 := sch1.Hash()
+	hash2 := sch2.Hash()
+	hash3 := sch3.Hash()
+
+	// Different $vocabulary values should produce different hashes
+	assert.NotEqual(t, hash1, hash2)
+	// Schema without $vocabulary should differ from schema with $vocabulary
+	assert.NotEqual(t, hash1, hash3)
+	assert.NotEqual(t, hash2, hash3)
+}
+
+// TestSchema_Vocabulary_Empty tests that empty $vocabulary is not set
+func TestSchema_Vocabulary_Empty(t *testing.T) {
+	yml := `type: object
+description: A schema without $vocabulary`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Nil(t, sch.Vocabulary.Value)
+}
