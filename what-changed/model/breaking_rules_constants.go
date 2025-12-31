@@ -178,6 +178,9 @@ const (
 	PropWrapped              = "wrapped"
 	PropWriteOnly            = "writeOnly"
 	PropXML                  = "xml"
+	PropComment              = "$comment"
+	PropContentSchema        = "contentSchema"
+	PropVocabulary           = "$vocabulary"
 )
 
 // ChangeType constants for IsBreaking lookup
