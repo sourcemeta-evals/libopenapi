@@ -48,6 +48,7 @@ type SchemaChanges struct {
 	DependentSchemasChanges      map[string]*SchemaChanges `json:"dependentSchemas,omitempty" yaml:"dependentSchemas,omitempty"`
 	DependentRequiredChanges     []*Change                 `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	PatternPropertiesChanges     map[string]*SchemaChanges `json:"patternProperties,omitempty" yaml:"patternProperties,omitempty"`
+	ContentSchemaChanges         *SchemaChanges            `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
 }
 
 func (s *SchemaChanges) GetPropertyChanges() []*Change {
@@ -153,6 +154,9 @@ func (s *SchemaChanges) GetAllChanges() []*Change {
 	if s.AdditionalPropertiesChanges != nil {
 		changes = append(changes, s.AdditionalPropertiesChanges.GetAllChanges()...)
 	}
+	if s.ContentSchemaChanges != nil {
+		changes = append(changes, s.ContentSchemaChanges.GetAllChanges()...)
+	}
 	if s.SchemaPropertyChanges != nil {
 		for n := range s.SchemaPropertyChanges {
 			if s.SchemaPropertyChanges[n] != nil {
@@ -251,6 +255,9 @@ func (s *SchemaChanges) TotalChanges() int {
 	if s.AdditionalPropertiesChanges != nil {
 		t += s.AdditionalPropertiesChanges.TotalChanges()
 	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalChanges()
+	}
 	if s.SchemaPropertyChanges != nil {
 		for n := range s.SchemaPropertyChanges {
 			if s.SchemaPropertyChanges[n] != nil {
@@ -346,6 +353,9 @@ func (s *SchemaChanges) TotalBreakingChanges() int {
 	}
 	if s.AdditionalPropertiesChanges != nil {
 		t += s.AdditionalPropertiesChanges.TotalBreakingChanges()
+	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalBreakingChanges()
 	}
 	if s.DependentSchemasChanges != nil {
 		for n := range s.DependentSchemasChanges {
@@ -1192,6 +1202,27 @@ func checkSchemaPropertyChanges(
 	lnv = nil
 	rnv = nil
 
+	if lSchema != nil && lSchema.Comment.ValueNode != nil {
+		lnv = lSchema.Comment.ValueNode
+	}
+	if rSchema != nil && rSchema.Comment.ValueNode != nil {
+		rnv = rSchema.Comment.ValueNode
+	}
+	// $comment
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     v3.CommentLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropComment),
+		Component: CompSchema,
+		Property:  PropComment,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
 	if lSchema != nil && lSchema.Default.ValueNode != nil {
 		lnv = lSchema.Default.ValueNode
 	}
@@ -1552,6 +1583,23 @@ func checkSchemaPropertyChanges(
 			lSchema.UnevaluatedProperties.ValueNode, nil, BreakingRemoved(CompSchema, PropUnevaluatedProps), lSchema.UnevaluatedProperties.Value, nil)
 	}
 
+	// contentSchema (JSON Schema 2020-12)
+	if (lSchema != nil && lSchema.ContentSchema.Value != nil) && (rSchema != nil && rSchema.ContentSchema.Value != nil) {
+		if !low.AreEqual(lSchema.ContentSchema.Value, rSchema.ContentSchema.Value) {
+			sc.ContentSchemaChanges = CompareSchemas(lSchema.ContentSchema.Value, rSchema.ContentSchema.Value)
+		}
+	}
+	// added contentSchema
+	if (lSchema == nil || lSchema.ContentSchema.Value == nil) && (rSchema != nil && rSchema.ContentSchema.Value != nil) {
+		CreateChange(changes, ObjectAdded, v3.ContentSchemaLabel,
+			nil, rSchema.ContentSchema.ValueNode, BreakingAdded(CompSchema, PropContentSchema), nil, rSchema.ContentSchema.Value)
+	}
+	// removed contentSchema
+	if (lSchema != nil && lSchema.ContentSchema.Value != nil) && (rSchema == nil || rSchema.ContentSchema.Value == nil) {
+		CreateChange(changes, ObjectRemoved, v3.ContentSchemaLabel,
+			lSchema.ContentSchema.ValueNode, nil, BreakingRemoved(CompSchema, PropContentSchema), lSchema.ContentSchema.Value, nil)
+	}
+
 	// Not
 	if (lSchema != nil && lSchema.Not.Value != nil) && (rSchema != nil && rSchema.Not.Value != nil) {
 		if !low.AreEqual(lSchema.Not.Value, rSchema.Not.Value) {
@@ -1668,6 +1716,16 @@ func checkSchemaPropertyChanges(
 	if lext != nil && rext != nil {
 		sc.ExtensionChanges = CompareExtensions(lext, rext)
 	}
+
+	// $vocabulary (JSON Schema 2020-12)
+	var lVocab, rVocab *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]
+	if lSchema != nil {
+		lVocab = lSchema.Vocabulary.Value
+	}
+	if rSchema != nil {
+		rVocab = rSchema.Vocabulary.Value
+	}
+	checkVocabularyChanges(lVocab, rVocab, changes)
 
 	// check core properties
 	CheckProperties(props)
@@ -1943,4 +2001,55 @@ func getNodeForProperty(depMap *orderedmap.Map[low.KeyReference[string], low.Val
 		}
 	}
 	return nil
+}
+
+// checkVocabularyChanges compares two $vocabulary maps and returns changes
+func checkVocabularyChanges(
+	left, right *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]],
+	changes *[]*Change,
+) {
+	// If both are nil, no changes
+	if left == nil && right == nil {
+		return
+	}
+
+	leftMap := make(map[string]bool)
+	rightMap := make(map[string]bool)
+
+	// Build left map
+	if left != nil {
+		for vocab, enabled := range left.FromOldest() {
+			leftMap[vocab.Value] = enabled.Value
+		}
+	}
+
+	// Build right map
+	if right != nil {
+		for vocab, enabled := range right.FromOldest() {
+			rightMap[vocab.Value] = enabled.Value
+		}
+	}
+
+	// Check for vocabulary additions and modifications
+	for vocab, rightEnabled := range rightMap {
+		if leftEnabled, exists := leftMap[vocab]; exists {
+			// Vocabulary exists in both, check if enabled status changed
+			if leftEnabled != rightEnabled {
+				CreateChange(changes, Modified, PropVocabulary,
+					nil, nil, BreakingModified(CompSchema, PropVocabulary), leftEnabled, rightEnabled)
+			}
+		} else {
+			// Vocabulary added
+			CreateChange(changes, PropertyAdded, PropVocabulary,
+				nil, nil, BreakingAdded(CompSchema, PropVocabulary), nil, rightEnabled)
+		}
+	}
+
+	// Check for vocabulary removals
+	for vocab, leftEnabled := range leftMap {
+		if _, exists := rightMap[vocab]; !exists {
+			CreateChange(changes, PropertyRemoved, PropVocabulary,
+				nil, nil, BreakingRemoved(CompSchema, PropVocabulary), leftEnabled, nil)
+		}
+	}
 }
