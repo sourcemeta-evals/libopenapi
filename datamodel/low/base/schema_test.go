@@ -159,7 +159,13 @@ minContains: 1
 uniqueItems: true
 $anchor: anchor
 $dynamicAnchor: dynamicAnchorValue
-$dynamicRef: "#dynamicRefTarget"`
+$dynamicRef: "#dynamicRefTarget"
+$comment: "This is a test comment"
+contentSchema:
+  type: string
+$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://json-schema.org/draft/2020-12/vocab/applicator": false`
 }
 
 func Test_Schema(t *testing.T) {
@@ -354,6 +360,10 @@ func Test_Schema(t *testing.T) {
 	assert.Equal(t, "anchor", sch.Anchor.Value)
 	assert.Equal(t, "dynamicAnchorValue", sch.DynamicAnchor.Value)
 	assert.Equal(t, "#dynamicRefTarget", sch.DynamicRef.Value)
+	assert.Equal(t, "This is a test comment", sch.Comment.Value)
+	assert.Equal(t, "string", sch.ContentSchema.Value.Schema().Type.Value.A)
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 2, sch.Vocabulary.Value.Len())
 }
 
 func TestSchemaAllOfSequenceOrder(t *testing.T) {
