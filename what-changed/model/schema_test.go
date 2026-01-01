@@ -5156,3 +5156,348 @@ components:
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.Nil(t, changes)
 }
+
+// TestCompareSchemas_Comment_Added tests $comment addition detection
+func TestCompareSchemas_Comment_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "This is a comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.Equal(t, "This is a comment", change.New)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_Removed tests $comment removal detection
+func TestCompareSchemas_Comment_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "This is a comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.Equal(t, "This is a comment", change.Original)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_Modified tests $comment modification detection
+func TestCompareSchemas_Comment_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Original comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Modified comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, Modified, change.ChangeType)
+			assert.Equal(t, "Original comment", change.Original)
+			assert.Equal(t, "Modified comment", change.New)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_NoChange tests identical $comment produces no changes
+func TestCompareSchemas_Comment_NoChange(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Same comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Same comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_ContentSchema_Added tests contentSchema addition detection
+func TestCompareSchemas_ContentSchema_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropContentSchema {
+			found = true
+			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.True(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find contentSchema property change")
+}
+
+// TestCompareSchemas_ContentSchema_Removed tests contentSchema removal detection
+func TestCompareSchemas_ContentSchema_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropContentSchema {
+			found = true
+			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.True(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find contentSchema property change")
+}
+
+// TestCompareSchemas_ContentSchema_Modified tests contentSchema modification detection
+func TestCompareSchemas_ContentSchema_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.NotNil(t, changes.ContentSchemaChanges)
+	assert.Equal(t, 1, changes.ContentSchemaChanges.TotalChanges())
+}
