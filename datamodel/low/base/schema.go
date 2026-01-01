@@ -134,6 +134,9 @@ type Schema struct {
 	Description          low.NodeReference[string]
 	ContentEncoding      low.NodeReference[string]
 	ContentMediaType     low.NodeReference[string]
+	Comment              string // TODO: implement $comment support
+	ContentSchema        string // TODO: implement contentSchema support
+	Vocabulary           string // TODO: implement $vocabulary support
 	Default              low.NodeReference[*yaml.Node]
 	Const                low.NodeReference[*yaml.Node]
 	Nullable             low.NodeReference[bool]
