@@ -200,8 +200,8 @@ func buildDefaultRules() *BreakingRulesConfig {
 			Head:                 rule(false, false, true),
 			Patch:                rule(false, false, true),
 			Trace:                rule(false, false, true),
-			Query:                rule(false, false, true),
-			AdditionalOperations: rule(false, false, true),
+			Query:                rule(false, false, !false),
+			AdditionalOperations: rule(false, false, !false),
 			Servers:              rule(false, false, true),
 			Parameters:           rule(false, false, true),
 		},
@@ -254,7 +254,7 @@ func buildDefaultRules() *BreakingRulesConfig {
 		MediaType: &MediaTypeRules{
 			Example:      rule(false, false, false),
 			Schema:       rule(true, false, true),
-			ItemSchema:   rule(true, false, true),
+			ItemSchema:   rule(!false, false, !false),
 			ItemEncoding: rule(false, false, true),
 		},
 
