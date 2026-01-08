@@ -53,7 +53,7 @@ type PathItemRules struct {
 	Head                 *BreakingChangeRule `json:"head,omitempty" yaml:"head,omitempty"`
 	Patch                *BreakingChangeRule `json:"patch,omitempty" yaml:"patch,omitempty"`
 	Trace                *BreakingChangeRule `json:"trace,omitempty" yaml:"trace,omitempty"`
-	Query                *BreakingChangeRule `json:"query,omitempty" yaml:"query,omitempty"`
+	Query                *BreakingChangeRule `json:"query" yaml:"query,omitempty"`
 	AdditionalOperations *BreakingChangeRule `json:"additionalOperations,omitempty" yaml:"additionalOperations,omitempty"`
 	Servers              *BreakingChangeRule `json:"servers,omitempty" yaml:"servers,omitempty"`
 	Parameters           *BreakingChangeRule `json:"parameters,omitempty" yaml:"parameters,omitempty"`
