@@ -111,6 +111,9 @@ type Schema struct {
 	Anchor                low.NodeReference[string]
 	DynamicAnchor         low.NodeReference[string]
 	DynamicRef            low.NodeReference[string]
+	Comment               low.NodeReference[string]                                                              // JSON Schema 2020-12 $comment - schema comment
+	ContentSchema         low.NodeReference[*SchemaProxy]                                                        // JSON Schema 2020-12 contentSchema - schema for content
+	Vocabulary            low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]] // JSON Schema 2020-12 $vocabulary - vocabulary declarations
 
 	// Compatible with all versions
 	Title                low.NodeReference[string]
@@ -506,6 +509,31 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteString(s.DynamicRef.Value)
 		sb.WriteByte('|')
 	}
+	if !s.Comment.IsEmpty() {
+		sb.WriteString(s.Comment.Value)
+		sb.WriteByte('|')
+	}
+	if !s.ContentSchema.IsEmpty() {
+		sb.WriteString(low.GenerateHashString(s.ContentSchema.Value))
+		sb.WriteByte('|')
+	}
+	// Process vocabulary
+	if s.Vocabulary.Value != nil {
+		var vocabKeys []string
+		vocabMap := make(map[string]bool)
+		for vocab, enabled := range s.Vocabulary.Value.FromOldest() {
+			vocabKeys = append(vocabKeys, vocab.Value)
+			vocabMap[vocab.Value] = enabled.Value
+		}
+		sort.Strings(vocabKeys)
+
+		for _, vocab := range vocabKeys {
+			sb.WriteString(vocab)
+			sb.WriteByte(':')
+			sb.WriteString(fmt.Sprint(vocabMap[vocab]))
+			sb.WriteByte('|')
+		}
+	}
 
 	// Process dependent schemas and pattern properties
 	for _, hash := range low.AppendMapHashes(nil, orderedmap.SortAlpha(s.DependentSchemas.Value)) {
@@ -867,6 +895,14 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		}
 	}
 
+	// handle $comment if set. (3.1+, JSON Schema 2020-12)
+	_, commentLabel, commentNode := utils.FindKeyNodeFullTop(CommentLabel, root.Content)
+	if commentNode != nil {
+		s.Comment = low.NodeReference[string]{
+			Value: commentNode.Value, KeyNode: commentLabel, ValueNode: commentNode,
+		}
+	}
+
 	// handle example if set. (3.0)
 	_, expLabel, expNode := utils.FindKeyNodeFullTop(ExampleLabel, root.Content)
 	if expNode != nil {
@@ -1002,6 +1038,15 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		s.DependentRequired = *depReq
 	}
 
+	// handle $vocabulary (3.1+, JSON Schema 2020-12)
+	vocab, err := buildVocabularyMap(root, VocabularyLabel)
+	if err != nil {
+		return err
+	}
+	if vocab != nil {
+		s.Vocabulary = *vocab
+	}
+
 	// handle pattern properties
 	props, err = buildPropertyMap(ctx, s, root, idx, PatternPropertiesLabel)
 	if err != nil {
@@ -1054,7 +1099,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	}
 
 	var allOf, anyOf, oneOf, prefixItems []low.ValueReference[*SchemaProxy]
-	var items, not, contains, sif, selse, sthen, propertyNames, unevalItems, unevalProperties, addProperties low.ValueReference[*SchemaProxy]
+	var items, not, contains, sif, selse, sthen, propertyNames, unevalItems, unevalProperties, addProperties, contentSchema low.ValueReference[*SchemaProxy]
 
 	_, allOfLabel, allOfValue := utils.FindKeyNodeFullTop(AllOfLabel, root.Content)
 	_, anyOfLabel, anyOfValue := utils.FindKeyNodeFullTop(AnyOfLabel, root.Content)
@@ -1069,6 +1114,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	_, unevalItemsLabel, unevalItemsValue := utils.FindKeyNodeFullTop(UnevaluatedItemsLabel, root.Content)
 	_, unevalPropsLabel, unevalPropsValue := utils.FindKeyNodeFullTop(UnevaluatedPropertiesLabel, root.Content)
 	_, addPropsLabel, addPropsValue := utils.FindKeyNodeFullTop(AdditionalPropertiesLabel, root.Content)
+	_, contentSchemaLabel, contentSchemaValue := utils.FindKeyNodeFullTop(ContentSchemaLabel, root.Content)
 
 	errorChan := make(chan error)
 	allOfChan := make(chan schemaProxyBuildResult)
@@ -1085,6 +1131,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	unevalItemsChan := make(chan schemaProxyBuildResult)
 	unevalPropsChan := make(chan schemaProxyBuildResult)
 	addPropsChan := make(chan schemaProxyBuildResult)
+	contentSchemaChan := make(chan schemaProxyBuildResult)
 
 	totalBuilds := countSubSchemaItems(allOfValue) +
 		countSubSchemaItems(anyOfValue) +
@@ -1143,6 +1190,10 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		totalBuilds++
 		go buildSchema(ctx, addPropsChan, addPropsLabel, addPropsValue, errorChan, idx)
 	}
+	if contentSchemaValue != nil {
+		totalBuilds++
+		go buildSchema(ctx, contentSchemaChan, contentSchemaLabel, contentSchemaValue, errorChan, idx)
+	}
 
 	completeCount := 0
 	for completeCount < totalBuilds {
@@ -1191,6 +1242,9 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		case r := <-addPropsChan:
 			completeCount++
 			addProperties = r.v
+		case r := <-contentSchemaChan:
+			completeCount++
+			contentSchema = r.v
 		}
 	}
 
@@ -1298,6 +1352,13 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 			ValueNode: addPropsValue,
 		}
 	}
+	if !contentSchema.IsEmpty() {
+		s.ContentSchema = low.NodeReference[*SchemaProxy]{
+			Value:     contentSchema.Value,
+			KeyNode:   contentSchemaLabel,
+			ValueNode: contentSchemaValue,
+		}
+	}
 	return nil
 }
 
@@ -1394,6 +1455,43 @@ func buildDependentRequiredMap(root *yaml.Node, label string) (*low.NodeReferenc
 
 		return &low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[[]string]]]{
 			Value:     dependentRequiredMap,
+			KeyNode:   propLabel,
+			ValueNode: propsNode,
+		}, nil
+	}
+	return nil, nil
+}
+
+func buildVocabularyMap(root *yaml.Node, label string) (*low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]], error) {
+	_, propLabel, propsNode := utils.FindKeyNodeFullTop(label, root.Content)
+	if propsNode != nil {
+		vocabularyMap := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
+		var currentKey *yaml.Node
+		for i, node := range propsNode.Content {
+			if i%2 == 0 {
+				currentKey = node
+				continue
+			}
+
+			// node should be a boolean
+			if !utils.IsNodeBoolValue(node) {
+				return nil, fmt.Errorf("$vocabulary value must be a boolean, found %v at line %d, col %d",
+					node.Kind, node.Line, node.Column)
+			}
+
+			boolValue, _ := strconv.ParseBool(node.Value)
+
+			vocabularyMap.Set(low.KeyReference[string]{
+				KeyNode: currentKey,
+				Value:   currentKey.Value,
+			}, low.ValueReference[bool]{
+				Value:     boolValue,
+				ValueNode: node,
+			})
+		}
+
+		return &low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]]{
+			Value:     vocabularyMap,
 			KeyNode:   propLabel,
 			ValueNode: propsNode,
 		}, nil
