@@ -1811,3 +1811,58 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestNewSchema_DynamicAnchor(t *testing.T) {
+	yml := `type: object
+description: a schema with dynamic anchor
+$dynamicAnchor: myDynamicAnchor`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Equal(t, "object", highSchema.Type[0])
+	assert.Equal(t, "a schema with dynamic anchor", highSchema.Description)
+	assert.Equal(t, "myDynamicAnchor", highSchema.DynamicAnchor)
+}
+
+func TestNewSchema_DynamicRef(t *testing.T) {
+	yml := `type: object
+description: a schema with dynamic ref
+$dynamicRef: "#myDynamicAnchor"`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Equal(t, "object", highSchema.Type[0])
+	assert.Equal(t, "a schema with dynamic ref", highSchema.Description)
+	assert.Equal(t, "#myDynamicAnchor", highSchema.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndRef(t *testing.T) {
+	yml := `type: object
+description: a schema with both dynamic anchor and ref
+$dynamicAnchor: baseSchema
+$dynamicRef: "#extensibleSchema"`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Equal(t, "object", highSchema.Type[0])
+	assert.Equal(t, "a schema with both dynamic anchor and ref", highSchema.Description)
+	assert.Equal(t, "baseSchema", highSchema.DynamicAnchor)
+	assert.Equal(t, "#extensibleSchema", highSchema.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndRef_Render(t *testing.T) {
+	yml := `type: object
+$dynamicAnchor: testAnchor
+$dynamicRef: "#testRef"`
+
+	highSchema := getHighSchema(t, yml)
+
+	// Render the schema back to YAML
+	rendered, err := highSchema.Render()
+	assert.NoError(t, err)
+
+	output := string(rendered)
+	assert.Contains(t, output, "$dynamicAnchor: testAnchor")
+	assert.Contains(t, output, "$dynamicRef:")
+	assert.Contains(t, output, "#testRef")
+}
