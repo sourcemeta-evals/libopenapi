@@ -1,5 +1,6 @@
 // Copyright 2022 Princess B33f Heavy Industries / Dave Shanley
 // SPDX-License-Identifier: MIT
+// Added support for $dynamicAnchor and $dynamicRef JSON Schema 2020-12 properties
 
 // Package libopenapi is a library containing tools for reading and in and manipulating Swagger (OpenAPI 2) and OpenAPI 3+
 // specifications into strongly typed documents. These documents have two APIs, a high level (porcelain) and a

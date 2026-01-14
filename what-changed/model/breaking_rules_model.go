@@ -193,6 +193,8 @@ type SchemaRules struct {
 	DependentRequired     *BreakingChangeRule `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	XML                   *BreakingChangeRule `json:"xml,omitempty" yaml:"xml,omitempty"`
 	SchemaDialect         *BreakingChangeRule `json:"schemaDialect,omitempty" yaml:"schemaDialect,omitempty"`
+	DynamicAnchor         *BreakingChangeRule `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
+	DynamicRef            *BreakingChangeRule `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
 }
 
 // DiscriminatorRules defines breaking rules for the Discriminator object properties.

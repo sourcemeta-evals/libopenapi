@@ -1591,6 +1591,67 @@ func checkSchemaPropertyChanges(
 			lSchema.Items.ValueNode, nil, BreakingRemoved(CompSchema, PropItems), lSchema.Items.Value, nil)
 	}
 
+	// $dynamicAnchor (JSON Schema 2020-12)
+	// This property is part of the JSON Schema 2020-12 specification
+	// It provides a way to define dynamic anchors for recursive schema resolution
+	// The dynamic anchor can be referenced by $dynamicRef from nested schemas
+	// This is particularly useful for recursive schema definitions
+	// where the anchor needs to be resolved dynamically at runtime
+	// rather than statically at schema compilation time
+	// See: https://json-schema.org/draft/2020-12/json-schema-core.html
+	// Section 8.2.3.2 for more details on dynamic references
+	lnv = nil
+	rnv = nil
+	if lSchema != nil && lSchema.DynamicAnchor.ValueNode != nil {
+		lnv = lSchema.DynamicAnchor.ValueNode
+	}
+	if rSchema != nil && rSchema.DynamicAnchor.ValueNode != nil {
+		rnv = rSchema.DynamicAnchor.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     "$dynamicAnchor",
+		Changes:   changes,
+		Breaking:  false,
+		Component: CompSchema,
+		Property:  PropDynamicAnchor,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	// $dynamicRef (JSON Schema 2020-12)
+	// This property is the counterpart to $dynamicAnchor
+	// It provides a way to reference dynamic anchors defined in the schema
+	// Unlike $ref which is resolved statically, $dynamicRef is resolved dynamically
+	// This allows for more flexible recursive schema definitions
+	// The resolution starts from the outermost schema and works inward
+	// finding the first matching $dynamicAnchor in the schema hierarchy
+	// This enables powerful patterns like extensible recursive schemas
+	// See: https://json-schema.org/draft/2020-12/json-schema-core.html
+	// Section 8.2.3.2 for more details on dynamic references
+	if lSchema != nil && lSchema.DynamicRef.ValueNode != nil {
+		lnv = lSchema.DynamicRef.ValueNode
+	}
+	if rSchema != nil && rSchema.DynamicRef.ValueNode != nil {
+		rnv = rSchema.DynamicRef.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     "$dynamicRef",
+		Changes:   changes,
+		Breaking:  false,
+		Component: CompSchema,
+		Property:  PropDynamicRef,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
 	// check extensions
 	var lext *orderedmap.Map[low.KeyReference[string], low.ValueReference[*yaml.Node]]
 	var rext *orderedmap.Map[low.KeyReference[string], low.ValueReference[*yaml.Node]]

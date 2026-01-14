@@ -336,6 +336,8 @@ func buildDefaultRules() *BreakingRulesConfig {
 			DependentRequired:     rule(false, true, true),
 			XML:                   rule(false, false, true),
 			SchemaDialect:         rule(true, true, true),
+			DynamicAnchor:         rule(false, true, true),
+			DynamicRef:            rule(false, true, true),
 		},
 
 		Discriminator: &DiscriminatorRules{
