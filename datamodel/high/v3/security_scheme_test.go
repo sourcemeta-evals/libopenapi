@@ -118,4 +118,3 @@ func TestSecurityScheme_IsReference_False(t *testing.T) {
 	assert.False(t, ss.IsReference())
 	assert.Equal(t, "", ss.GetReference())
 }
-

@@ -463,4 +463,3 @@ func TestPathItem_IsReference_False(t *testing.T) {
 	assert.False(t, pi.IsReference())
 	assert.Equal(t, "", pi.GetReference())
 }
-
