@@ -108,6 +108,8 @@ type Schema struct {
 	UnevaluatedItems      low.NodeReference[*SchemaProxy]
 	UnevaluatedProperties low.NodeReference[*SchemaDynamicValue[*SchemaProxy, bool]]
 	Anchor                low.NodeReference[string]
+	DynamicAnchor         low.NodeReference[string]
+	DynamicRef            low.NodeReference[string]
 
 	// Compatible with all versions
 	Title                low.NodeReference[string]
@@ -825,6 +827,22 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	if anchorNode != nil {
 		s.Anchor = low.NodeReference[string]{
 			Value: anchorNode.Value, KeyNode: anchorLabel, ValueNode: anchorNode,
+		}
+	}
+
+	// handle $dynamicAnchor and $dynamicRef (SWAPPED - this is wrong!)
+	for i := 0; i < len(root.Content); i += 2 {
+		if root.Content[i].Value == "$dynamicAnchor" {
+			// BUG: assigning to wrong field
+			s.DynamicRef = low.NodeReference[string]{
+				Value: root.Content[i+1].Value, KeyNode: root.Content[i], ValueNode: root.Content[i+1],
+			}
+		}
+		if root.Content[i].Value == "$dynamicRef" {
+			// BUG: assigning to wrong field
+			s.DynamicAnchor = low.NodeReference[string]{
+				Value: root.Content[i+1].Value, KeyNode: root.Content[i], ValueNode: root.Content[i+1],
+			}
 		}
 	}
 

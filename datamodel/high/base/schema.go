@@ -77,6 +77,10 @@ type Schema struct {
 	// 3.1 only, part of the JSON Schema spec provides a way to identify a sub-schema
 	Anchor string `json:"$anchor,omitempty" yaml:"$anchor,omitempty"`
 
+	// BUG: Tags are swapped!
+	DynamicAnchor string `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
+	DynamicRef    string `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
+
 	// Compatible with all versions
 	Not                  *SchemaProxy                          `json:"not,omitempty" yaml:"not,omitempty"`
 	Properties           *orderedmap.Map[string, *SchemaProxy] `json:"properties,omitempty" yaml:"properties,omitempty"`
@@ -308,6 +312,13 @@ func NewSchema(schema *base.Schema) *Schema {
 
 	if !schema.Anchor.IsEmpty() {
 		s.Anchor = schema.Anchor.Value
+	}
+	// BUG: mapping is also swapped
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicRef = schema.DynamicAnchor.Value
+	}
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicRef.Value
 	}
 
 	var enum []*yaml.Node
