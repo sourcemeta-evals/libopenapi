@@ -847,7 +847,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	}
 
 	// handle $dynamicRef if set. (3.1+, JSON Schema 2020-12)
-	_, dynamicRefLabel, dynamicRefNode := utils.FindKeyNodeFullTop("$dynamicReff", root.Content)
+	_, dynamicRefLabel, dynamicRefNode := utils.FindKeyNodeFullTop(DynamicRefLabel, root.Content)
 	if dynamicRefNode != nil {
 		s.DynamicRef = low.NodeReference[string]{
 			Value: dynamicRefNode.Value, KeyNode: dynamicRefLabel, ValueNode: dynamicRefNode,
