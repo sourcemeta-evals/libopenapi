@@ -77,6 +77,10 @@ type Schema struct {
 	// 3.1 only, part of the JSON Schema spec provides a way to identify a sub-schema
 	Anchor string `json:"$anchor,omitempty" yaml:"$anchor,omitempty"`
 
+	// 2020-12 only, part of the JSON Schema spec provides dynamic referencing for generics
+	DynamicAnchor string `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
+	DynamicRef    string `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
+
 	// Compatible with all versions
 	Not                  *SchemaProxy                          `json:"not,omitempty" yaml:"not,omitempty"`
 	Properties           *orderedmap.Map[string, *SchemaProxy] `json:"properties,omitempty" yaml:"properties,omitempty"`
@@ -308,6 +312,14 @@ func NewSchema(schema *base.Schema) *Schema {
 
 	if !schema.Anchor.IsEmpty() {
 		s.Anchor = schema.Anchor.Value
+	}
+
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicAnchor.Value
+	}
+
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicRef = schema.DynamicRef.Value
 	}
 
 	var enum []*yaml.Node
