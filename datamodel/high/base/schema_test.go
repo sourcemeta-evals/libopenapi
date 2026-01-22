@@ -1811,3 +1811,81 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myDynamicAnchor
+$dynamicRef: "#myDynamicRef"
+properties:
+  name:
+    type: string`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	lowSch := lowbase.Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
+	assert.NoError(t, mbErr)
+
+	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "myDynamicAnchor", highSch.DynamicAnchor)
+	assert.Equal(t, "#myDynamicRef", highSch.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndDynamicRef_Empty(t *testing.T) {
+	testSpec := `type: object
+properties:
+  name:
+    type: string`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	lowSch := lowbase.Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
+	assert.NoError(t, mbErr)
+
+	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Empty(t, highSch.DynamicAnchor)
+	assert.Empty(t, highSch.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndDynamicRef_Render(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myDynamicAnchor
+$dynamicRef: "#myDynamicRef"
+properties:
+  name:
+    type: string`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	lowSch := lowbase.Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
+	assert.NoError(t, mbErr)
+
+	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+
+	highSch := NewSchema(&lowSch)
+
+	rendered, err := highSch.Render()
+	assert.NoError(t, err)
+
+	output := string(rendered)
+	assert.Contains(t, output, "$dynamicAnchor: myDynamicAnchor")
+	assert.Contains(t, output, "$dynamicRef:")
+	assert.Contains(t, output, "#myDynamicRef")
+}
