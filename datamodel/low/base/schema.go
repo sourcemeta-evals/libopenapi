@@ -677,6 +677,8 @@ func (s *Schema) GetRootNode() *yaml.Node {
 //   - UnevaluatedItems
 //   - UnevaluatedProperties
 //   - Anchor
+//   - DynamicAnchor
+//   - DynamicRef
 func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) error {
 	if root == nil {
 		return fmt.Errorf("cannot build schema from a nil node")

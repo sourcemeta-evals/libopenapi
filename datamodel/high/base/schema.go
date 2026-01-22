@@ -357,6 +357,14 @@ func NewSchema(schema *base.Schema) *Schema {
 		s.Vocabulary = vocabularyMap
 	}
 
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicAnchor.Value
+	}
+
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicRef = schema.DynamicRef.Value
+	}
+
 	var enum []*yaml.Node
 	for i := range schema.Enum.Value {
 		enum = append(enum, schema.Enum.Value[i].Value)
