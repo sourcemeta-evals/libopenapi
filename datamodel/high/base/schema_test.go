@@ -1811,3 +1811,118 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	testSpec := `$schema: https://json-schema.org/draft/2020-12/schema
+type: object
+$dynamicAnchor: myAnchor
+$dynamicRef: "#otherAnchor"
+properties:
+  name:
+    type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Nil(t, schemaProxy.GetBuildError())
+
+	assert.Equal(t, "myAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "#otherAnchor", compiled.DynamicRef)
+	assert.Equal(t, "https://json-schema.org/draft/2020-12/schema", compiled.SchemaTypeRef)
+}
+
+func TestNewSchema_DynamicAnchorOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: recursiveAnchor
+properties:
+  value:
+    type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "recursiveAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "", compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicRefOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicRef: "#someAnchor"
+properties:
+  value:
+    type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "", compiled.DynamicAnchor)
+	assert.Equal(t, "#someAnchor", compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndRef_Render(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myAnchor
+$dynamicRef: "#otherAnchor"`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	// Render and verify the output contains the dynamic keywords
+	schemaBytes, renderErr := compiled.Render()
+	assert.NoError(t, renderErr)
+	output := string(schemaBytes)
+
+	assert.Contains(t, output, "$dynamicAnchor: myAnchor")
+	assert.Contains(t, output, "$dynamicRef: ")
+}
