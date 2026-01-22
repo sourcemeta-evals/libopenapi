@@ -56,9 +56,13 @@ const (
 	ExclusiveMaximumLabel      = "exclusiveMaximum"
 	SchemaLabel                = "schema"
 	SchemaTypeLabel            = "$schema"
+	IdLabel                    = "$id"
 	AnchorLabel                = "$anchor"
 	DynamicAnchorLabel         = "$dynamicAnchor"
 	DynamicRefLabel            = "$dynamicRef"
+	CommentLabel               = "$comment"
+	ContentSchemaLabel         = "contentSchema"
+	VocabularyLabel            = "$vocabulary"
 )
 
 /*

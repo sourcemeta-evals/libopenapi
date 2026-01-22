@@ -267,6 +267,8 @@ minItems: 10
 maxProperties: 30
 minProperties: 1
 $anchor: anchor
+$dynamicAnchor: dynamicAnchorValue
+$dynamicRef: "#dynamicRefTarget"
 $schema: https://example.com/custom-json-schema-dialect`
 
 	var compNode yaml.Node
@@ -312,6 +314,8 @@ $schema: https://example.com/custom-json-schema-dialect`
 	assert.True(t, *compiled.Deprecated)
 	assert.True(t, *compiled.Nullable)
 	assert.Equal(t, "anchor", compiled.Anchor)
+	assert.Equal(t, "dynamicAnchorValue", compiled.DynamicAnchor)
+	assert.Equal(t, "#dynamicRefTarget", compiled.DynamicRef)
 	assert.Equal(t, "https://example.com/custom-json-schema-dialect", compiled.SchemaTypeRef)
 
 	wentLow := compiled.GoLow()
@@ -320,7 +324,7 @@ $schema: https://example.com/custom-json-schema-dialect`
 
 	// now render it out!
 	schemaBytes, _ := compiled.Render()
-	assert.Len(t, schemaBytes, 3473)
+	assert.Len(t, schemaBytes, 3541)
 }
 
 func TestSchemaObjectWithAllOfSequenceOrder(t *testing.T) {
@@ -1812,80 +1816,210 @@ oneOf:
 	assert.Contains(t, output, "type:")
 }
 
-func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
-	testSpec := `type: object
-$dynamicAnchor: myDynamicAnchor
-$dynamicRef: "#myDynamicRef"
-properties:
-  name:
-    type: string`
+func TestSchema_RenderInlineWithContext_Error(t *testing.T) {
+	// Test the error path in RenderInlineWithContext (line 506)
+	// Create a schema with a circular reference that will trigger an error
 
-	var rootNode yaml.Node
-	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
-	assert.NoError(t, mErr)
+	idxYaml := `components:
+  schemas:
+    Circular:
+      type: object
+      properties:
+        self:
+          $ref: '#/components/schemas/Circular'`
 
-	lowSch := lowbase.Schema{}
-	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
-	assert.NoError(t, mbErr)
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(idxYaml), &idxNode)
 
-	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
-	assert.NoError(t, schErr)
+	idx := index.NewSpecIndexWithConfig(&idxNode, index.CreateOpenAPIIndexConfig())
 
-	highSch := NewSchema(&lowSch)
-
-	assert.Equal(t, "myDynamicAnchor", highSch.DynamicAnchor)
-	assert.Equal(t, "#myDynamicRef", highSch.DynamicRef)
-}
-
-func TestNewSchema_DynamicAnchorAndDynamicRef_Empty(t *testing.T) {
-	testSpec := `type: object
-properties:
-  name:
-    type: string`
-
-	var rootNode yaml.Node
-	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
-	assert.NoError(t, mErr)
-
-	lowSch := lowbase.Schema{}
-	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
-	assert.NoError(t, mbErr)
-
-	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
-	assert.NoError(t, schErr)
-
-	highSch := NewSchema(&lowSch)
-
-	assert.Empty(t, highSch.DynamicAnchor)
-	assert.Empty(t, highSch.DynamicRef)
-}
-
-func TestNewSchema_DynamicAnchorAndDynamicRef_Render(t *testing.T) {
-	testSpec := `type: object
-$dynamicAnchor: myDynamicAnchor
-$dynamicRef: "#myDynamicRef"
-properties:
-  name:
-    type: string`
-
-	var rootNode yaml.Node
-	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
-	assert.NoError(t, mErr)
-
-	lowSch := lowbase.Schema{}
-	mbErr := low.BuildModel(rootNode.Content[0], &lowSch)
-	assert.NoError(t, mbErr)
-
-	schErr := lowSch.Build(context.Background(), rootNode.Content[0], nil)
-	assert.NoError(t, schErr)
-
-	highSch := NewSchema(&lowSch)
-
-	rendered, err := highSch.Render()
+	// Build the circular schema
+	schemas := idxNode.Content[0].Content[1].Content[1] // components -> schemas -> Circular
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, schemas.Content[1], idx)
 	assert.NoError(t, err)
 
-	output := string(rendered)
-	assert.Contains(t, output, "$dynamicAnchor: myDynamicAnchor")
-	assert.Contains(t, output, "$dynamicRef:")
-	assert.Contains(t, output, "#myDynamicRef")
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: schemas.Content[1],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	// Create a context and pre-mark the schema's render key to simulate a cycle
+	ctx := NewInlineRenderContext()
+
+	// Get the render key for the self-referencing property's schema proxy
+	if compiled.Properties != nil {
+		selfProp := compiled.Properties.GetOrZero("self")
+		if selfProp != nil {
+			// Pre-mark this key as rendering to force a cycle error
+			renderKey := selfProp.getInlineRenderKey()
+			if renderKey != "" {
+				ctx.StartRendering(renderKey)
+			}
+		}
+	}
+
+	// RenderInlineWithContext should return an error due to the pre-marked cycle
+	result, err := compiled.RenderInlineWithContext(ctx)
+
+	// The error path should be triggered
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "circular reference")
+}
+
+// TestNewSchema_Id tests that the $id field is correctly mapped from low to high level
+func TestNewSchema_Id(t *testing.T) {
+	yml := `type: object
+$id: "https://example.com/schemas/pet.json"
+description: A pet schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "https://example.com/schemas/pet.json", highSch.Id)
+	assert.Equal(t, "object", highSch.Type[0])
+	assert.Equal(t, "A pet schema", highSch.Description)
+}
+
+// TestNewSchema_Id_Empty tests that empty $id results in empty string
+func TestNewSchema_Id_Empty(t *testing.T) {
+	yml := `type: object
+description: A schema without $id`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "", highSch.Id)
+}
+
+// TestNewSchema_Comment tests that $comment is populated in high-level schema
+func TestNewSchema_Comment(t *testing.T) {
+	yml := `type: object
+$comment: This is a test comment explaining the schema purpose
+description: A schema with $comment`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "This is a test comment explaining the schema purpose", highSch.Comment)
+	assert.Equal(t, "object", highSch.Type[0])
+}
+
+// TestNewSchema_ContentSchema tests that contentSchema is populated in high-level schema
+func TestNewSchema_ContentSchema(t *testing.T) {
+	yml := `type: string
+contentMediaType: application/json
+contentSchema:
+  type: object
+  properties:
+    name:
+      type: string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.NotNil(t, highSch.ContentSchema)
+	contentSch := highSch.ContentSchema.Schema()
+	assert.NotNil(t, contentSch)
+	assert.Equal(t, "object", contentSch.Type[0])
+	assert.NotNil(t, contentSch.Properties)
+	assert.Equal(t, 1, contentSch.Properties.Len())
+}
+
+// TestNewSchema_Vocabulary tests that $vocabulary is populated in high-level schema
+func TestNewSchema_Vocabulary(t *testing.T) {
+	yml := `$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://json-schema.org/draft/2020-12/vocab/validation": false
+  "https://json-schema.org/draft/2020-12/vocab/applicator": true`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.NotNil(t, highSch.Vocabulary)
+	assert.Equal(t, 3, highSch.Vocabulary.Len())
+
+	// Check specific vocabulary entries
+	for k, v := range highSch.Vocabulary.FromOldest() {
+		switch k {
+		case "https://json-schema.org/draft/2020-12/vocab/core":
+			assert.True(t, v)
+		case "https://json-schema.org/draft/2020-12/vocab/validation":
+			assert.False(t, v)
+		case "https://json-schema.org/draft/2020-12/vocab/applicator":
+			assert.True(t, v)
+		}
+	}
+}
+
+// TestNewSchema_ContentEncoding tests that contentEncoding is populated in high-level schema
+func TestNewSchema_ContentEncoding(t *testing.T) {
+	yml := `type: string
+contentEncoding: base64
+description: A base64 encoded string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "base64", highSch.ContentEncoding)
+	assert.Equal(t, "string", highSch.Type[0])
+}
+
+// TestNewSchema_ContentMediaType tests that contentMediaType is populated in high-level schema
+func TestNewSchema_ContentMediaType(t *testing.T) {
+	yml := `type: string
+contentMediaType: image/png
+description: A binary image encoded as string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "image/png", highSch.ContentMediaType)
+	assert.Equal(t, "string", highSch.Type[0])
 }

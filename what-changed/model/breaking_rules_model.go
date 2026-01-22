@@ -190,6 +190,12 @@ type SchemaRules struct {
 	Contains              *BreakingChangeRule `json:"contains,omitempty" yaml:"contains,omitempty"`
 	UnevaluatedItems      *BreakingChangeRule `json:"unevaluatedItems,omitempty" yaml:"unevaluatedItems,omitempty"`
 	UnevaluatedProperties *BreakingChangeRule `json:"unevaluatedProperties,omitempty" yaml:"unevaluatedProperties,omitempty"`
+	DynamicAnchor         *BreakingChangeRule `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
+	DynamicRef            *BreakingChangeRule `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
+	Id                    *BreakingChangeRule `json:"$id,omitempty" yaml:"$id,omitempty"`
+	Comment               *BreakingChangeRule `json:"$comment,omitempty" yaml:"$comment,omitempty"`
+	ContentSchema         *BreakingChangeRule `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+	Vocabulary            *BreakingChangeRule `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
 	DependentRequired     *BreakingChangeRule `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	XML                   *BreakingChangeRule `json:"xml,omitempty" yaml:"xml,omitempty"`
 	SchemaDialect         *BreakingChangeRule `json:"schemaDialect,omitempty" yaml:"schemaDialect,omitempty"`

@@ -383,7 +383,7 @@ type SpecIndex struct {
 	enumCount                           int
 	descriptionCount                    int
 	summaryCount                        int
-	refLock                             sync.Mutex
+	refLock                             sync.RWMutex
 	nodeMapLock                         sync.RWMutex
 	componentLock                       sync.RWMutex
 	errorLock                           sync.RWMutex
@@ -405,6 +405,8 @@ type SpecIndex struct {
 	nodeMapCompleted                    chan struct{}
 	pendingResolve                      []refMap
 	highModelCache                      Cache
+	schemaIdRegistry                    map[string]*SchemaIdEntry // registry of $id declarations for JSON Schema 2020-12
+	schemaIdRegistryLock                sync.RWMutex              // lock for concurrent access to schemaIdRegistry
 }
 
 // GetResolver returns the resolver for this index.

@@ -74,14 +74,26 @@ type Schema struct {
 	// in 3.1 Items can be a Schema or a boolean
 	Items *DynamicValue[*SchemaProxy, bool] `json:"items,omitempty" yaml:"items,omitempty"`
 
+	// 3.1+ only, JSON Schema 2020-12 $id - declares this schema as a schema resource with a URI identifier
+	Id string `json:"$id,omitempty" yaml:"$id,omitempty"`
+
 	// 3.1 only, part of the JSON Schema spec provides a way to identify a sub-schema
 	Anchor string `json:"$anchor,omitempty" yaml:"$anchor,omitempty"`
 
-	// 3.1 only, JSON Schema 2020-12 dynamic anchor for recursive schema extension
+	// 3.1+ only, JSON Schema 2020-12 dynamic anchor for recursive schema resolution
 	DynamicAnchor string `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
 
-	// 3.1 only, JSON Schema 2020-12 dynamic reference for recursive schema extension
+	// 3.1+ only, JSON Schema 2020-12 dynamic reference for recursive schema resolution
 	DynamicRef string `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
+
+	// 3.1+ only, JSON Schema 2020-12 $comment - explanatory notes without affecting validation
+	Comment string `json:"$comment,omitempty" yaml:"$comment,omitempty"`
+
+	// 3.1+ only, JSON Schema 2020-12 contentSchema - describes structure of decoded content
+	ContentSchema *SchemaProxy `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+
+	// 3.1+ only, JSON Schema 2020-12 $vocabulary - defines available vocabularies in meta-schemas
+	Vocabulary *orderedmap.Map[string, bool] `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
 
 	// Compatible with all versions
 	Not                  *SchemaProxy                          `json:"not,omitempty" yaml:"not,omitempty"`
@@ -103,6 +115,8 @@ type Schema struct {
 	Enum                 []*yaml.Node                          `json:"enum,omitempty" yaml:"enum,omitempty"`
 	AdditionalProperties *DynamicValue[*SchemaProxy, bool]     `json:"additionalProperties,renderZero,omitempty" yaml:"additionalProperties,renderZero,omitempty"`
 	Description          string                                `json:"description,omitempty" yaml:"description,omitempty"`
+	ContentEncoding      string                                `json:"contentEncoding,omitempty" yaml:"contentEncoding,omitempty"`
+	ContentMediaType     string                                `json:"contentMediaType,omitempty" yaml:"contentMediaType,omitempty"`
 	Default              *yaml.Node                            `json:"default,omitempty" yaml:"default,renderZero,omitempty"`
 	Const                *yaml.Node                            `json:"const,omitempty" yaml:"const,renderZero,omitempty"`
 	Nullable             *bool                                 `json:"nullable,omitempty" yaml:"nullable,omitempty"`
@@ -274,6 +288,8 @@ func NewSchema(schema *base.Schema) *Schema {
 	s.AdditionalProperties = additionalProperties
 
 	s.Description = schema.Description.Value
+	s.ContentEncoding = schema.ContentEncoding.Value
+	s.ContentMediaType = schema.ContentMediaType.Value
 	s.Default = schema.Default.Value
 	s.Const = schema.Const.Value
 	if !schema.Nullable.IsEmpty() {
@@ -312,8 +328,33 @@ func NewSchema(schema *base.Schema) *Schema {
 	}
 	s.Required = req
 
+	if !schema.Id.IsEmpty() {
+		s.Id = schema.Id.Value
+	}
 	if !schema.Anchor.IsEmpty() {
 		s.Anchor = schema.Anchor.Value
+	}
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicAnchor.Value
+	}
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicRef = schema.DynamicRef.Value
+	}
+	if !schema.Comment.IsEmpty() {
+		s.Comment = schema.Comment.Value
+	}
+	if !schema.ContentSchema.IsEmpty() {
+		s.ContentSchema = NewSchemaProxy(&lowmodel.NodeReference[*base.SchemaProxy]{
+			ValueNode: schema.ContentSchema.ValueNode,
+			Value:     schema.ContentSchema.Value,
+		})
+	}
+	if schema.Vocabulary.Value != nil {
+		vocabularyMap := orderedmap.New[string, bool]()
+		for k, v := range schema.Vocabulary.Value.FromOldest() {
+			vocabularyMap.Set(k.Value, v.Value)
+		}
+		s.Vocabulary = vocabularyMap
 	}
 
 	if !schema.DynamicAnchor.IsEmpty() {
@@ -498,16 +539,26 @@ func (s *Schema) Render() ([]byte, error) {
 	return yaml.Marshal(s)
 }
 
-// RenderInline will return a YAML representation of the Schema object as a byte slice.
-// All the $ref values will be inlined, as in resolved in place.
-//
-// Make sure you don't have any circular references!
-func (s *Schema) RenderInline() ([]byte, error) {
-	d, err := s.MarshalYAMLInline()
+// RenderInlineWithContext will return a YAML representation of the Schema object as a byte slice
+// using the provided InlineRenderContext for cycle detection.
+// Use this when multiple goroutines may render the same schemas concurrently.
+// The ctx parameter should be *InlineRenderContext but is typed as any to avoid import cycles.
+func (s *Schema) RenderInlineWithContext(ctx any) ([]byte, error) {
+	d, err := s.MarshalYAMLInlineWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return yaml.Marshal(d)
+}
+
+// RenderInline will return a YAML representation of the Schema object as a byte slice.
+// All the $ref values will be inlined, as in resolved in place.
+// This method creates a fresh InlineRenderContext internally.
+//
+// Make sure you don't have any circular references!
+func (s *Schema) RenderInline() ([]byte, error) {
+	ctx := NewInlineRenderContext()
+	return s.RenderInlineWithContext(ctx)
 }
 
 // MarshalYAML will create a ready to render YAML representation of the Schema object.
@@ -546,8 +597,12 @@ func (s *Schema) MarshalJSON() ([]byte, error) {
 	return json.Marshal(renderedJSON)
 }
 
-// MarshalYAMLInline will render out the Schema pointer as YAML, and all refs will be inlined fully
-func (s *Schema) MarshalYAMLInline() (interface{}, error) {
+// MarshalYAMLInlineWithContext will render out the Schema pointer as YAML using the provided
+// InlineRenderContext for cycle detection. All refs will be inlined fully.
+// Use this when multiple goroutines may render the same schemas concurrently.
+// The ctx parameter should be *InlineRenderContext but is typed as any to satisfy the
+// high.RenderableInlineWithContext interface without import cycles.
+func (s *Schema) MarshalYAMLInlineWithContext(ctx any) (interface{}, error) {
 	// If this schema has a discriminator, mark OneOf/AnyOf items to preserve their references.
 	// This ensures discriminator mapping refs are not inlined during bundling.
 	if s.Discriminator != nil {
@@ -565,6 +620,7 @@ func (s *Schema) MarshalYAMLInline() (interface{}, error) {
 
 	nb := high.NewNodeBuilder(s, s.low)
 	nb.Resolve = true
+	nb.RenderContext = ctx
 	// determine index version
 	idx := s.GoLow().Index
 	if idx != nil {
@@ -573,6 +629,13 @@ func (s *Schema) MarshalYAMLInline() (interface{}, error) {
 		}
 	}
 	return nb.Render(), errors.Join(nb.Errors...)
+}
+
+// MarshalYAMLInline will render out the Schema pointer as YAML, and all refs will be inlined fully.
+// This method creates a fresh InlineRenderContext internally.
+func (s *Schema) MarshalYAMLInline() (interface{}, error) {
+	ctx := NewInlineRenderContext()
+	return s.MarshalYAMLInlineWithContext(ctx)
 }
 
 // MarshalJSONInline will render out the Schema pointer as JSON, and all refs will be inlined fully

@@ -4674,3 +4674,1242 @@ components:
 	assert.NotNil(t, typeChange.Context.OriginalLine)
 	assert.NotNil(t, typeChange.Context.NewLine)
 }
+
+// TestCompareSchemas_DynamicAnchor_Added tests adding $dynamicAnchor (JSON Schema 2020-12)
+func TestCompareSchemas_DynamicAnchor_Added(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: node`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Adding $dynamicAnchor should not be breaking by default")
+	assert.Equal(t, PropertyAdded, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicAnchor_Modified tests modifying $dynamicAnchor
+func TestCompareSchemas_DynamicAnchor_Modified(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: nodeOld`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: nodeNew`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Modifying $dynamicAnchor should be breaking by default")
+	assert.Equal(t, Modified, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicAnchor_Removed tests removing $dynamicAnchor
+func TestCompareSchemas_DynamicAnchor_Removed(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: node`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Removing $dynamicAnchor should be breaking by default")
+	assert.Equal(t, PropertyRemoved, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicRef_Added tests adding $dynamicRef (JSON Schema 2020-12)
+func TestCompareSchemas_DynamicRef_Added(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#node"`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Adding $dynamicRef should not be breaking by default")
+	assert.Equal(t, PropertyAdded, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicRef_Modified tests modifying $dynamicRef
+func TestCompareSchemas_DynamicRef_Modified(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#oldNode"`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#newNode"`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Modifying $dynamicRef should be breaking by default")
+	assert.Equal(t, Modified, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicRef_Removed tests removing $dynamicRef
+func TestCompareSchemas_DynamicRef_Removed(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#node"`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Removing $dynamicRef should be breaking by default")
+	assert.Equal(t, PropertyRemoved, changes.Changes[0].ChangeType)
+	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
+}
+
+// TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules tests that $dynamicAnchor
+// breaking behavior can be configured
+func TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: nodeOld`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: nodeNew`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	// Default behavior: modification should be breaking
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Modifying $dynamicAnchor should be breaking by default")
+
+	// Now configure $dynamicAnchor modification as non-breaking
+	customConfig := &BreakingRulesConfig{
+		Schema: &SchemaRules{
+			DynamicAnchor: &BreakingChangeRule{
+				Added:    boolPtr(false),
+				Modified: boolPtr(false), // Override: modification is not breaking
+				Removed:  boolPtr(false),
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, modifying $dynamicAnchor should not be breaking")
+}
+
+// TestCompareSchemas_DynamicRef_ConfigurableBreakingRules tests that $dynamicRef
+// breaking behavior can be configured
+func TestCompareSchemas_DynamicRef_ConfigurableBreakingRules(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#oldNode"`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: "#newNode"`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	// Default behavior: modification should be breaking
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Modifying $dynamicRef should be breaking by default")
+
+	// Now configure $dynamicRef modification as non-breaking
+	customConfig := &BreakingRulesConfig{
+		Schema: &SchemaRules{
+			DynamicRef: &BreakingChangeRule{
+				Added:    boolPtr(false),
+				Modified: boolPtr(false), // Override: modification is not breaking
+				Removed:  boolPtr(false),
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, modifying $dynamicRef should not be breaking")
+}
+
+// TestCompareSchemas_Id_Added tests detection of $id being added
+func TestCompareSchemas_Id_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet.json"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	// Find the $id change
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropId {
+			found = true
+			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.Equal(t, "https://example.com/schemas/pet.json", change.New)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $id property change")
+}
+
+// TestCompareSchemas_Id_Removed tests detection of $id being removed
+func TestCompareSchemas_Id_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet.json"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	// Find the $id change
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropId {
+			found = true
+			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.Equal(t, "https://example.com/schemas/pet.json", change.Original)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $id property change")
+}
+
+// TestCompareSchemas_Id_Modified tests detection of $id being modified
+func TestCompareSchemas_Id_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet-v1.json"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet-v2.json"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	// Find the $id change
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropId {
+			found = true
+			assert.Equal(t, Modified, change.ChangeType)
+			assert.Equal(t, "https://example.com/schemas/pet-v1.json", change.Original)
+			assert.Equal(t, "https://example.com/schemas/pet-v2.json", change.New)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $id property change")
+}
+
+// TestCompareSchemas_Id_NoChange tests that identical $id produces no changes
+func TestCompareSchemas_Id_NoChange(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet.json"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $id: "https://example.com/schemas/pet.json"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_Comment_Added tests $comment addition detection
+func TestCompareSchemas_Comment_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "This is a comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.Equal(t, "This is a comment", change.New)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_Removed tests $comment removal detection
+func TestCompareSchemas_Comment_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "This is a comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.Equal(t, "This is a comment", change.Original)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_Modified tests $comment modification detection
+func TestCompareSchemas_Comment_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Original comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Modified comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropComment {
+			found = true
+			assert.Equal(t, Modified, change.ChangeType)
+			assert.Equal(t, "Original comment", change.Original)
+			assert.Equal(t, "Modified comment", change.New)
+			assert.False(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find $comment property change")
+}
+
+// TestCompareSchemas_Comment_NoChange tests identical $comment produces no changes
+func TestCompareSchemas_Comment_NoChange(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Same comment"
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $comment: "Same comment"
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_ContentSchema_Added tests contentSchema addition detection
+func TestCompareSchemas_ContentSchema_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropContentSchema {
+			found = true
+			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.True(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find contentSchema property change")
+}
+
+// TestCompareSchemas_ContentSchema_Removed tests contentSchema removal detection
+func TestCompareSchemas_ContentSchema_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+
+	found := false
+	for _, change := range changes.Changes {
+		if change.Property == PropContentSchema {
+			found = true
+			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.True(t, change.Breaking)
+			break
+		}
+	}
+	assert.True(t, found, "Should find contentSchema property change")
+}
+
+// TestCompareSchemas_ContentSchema_Modified tests contentSchema modification detection
+func TestCompareSchemas_ContentSchema_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.NotNil(t, changes.ContentSchemaChanges)
+	assert.Equal(t, 1, changes.ContentSchemaChanges.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_Added tests $vocabulary entry addition detection
+func TestCompareSchemas_Vocabulary_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+        "https://json-schema.org/draft/2020-12/vocab/validation": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Len(t, changes.VocabularyChanges, 1)
+	assert.Equal(t, PropertyAdded, changes.VocabularyChanges[0].ChangeType)
+	assert.True(t, changes.VocabularyChanges[0].Breaking)
+}
+
+// TestCompareSchemas_Vocabulary_Removed tests $vocabulary entry removal detection
+func TestCompareSchemas_Vocabulary_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+        "https://json-schema.org/draft/2020-12/vocab/validation": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Len(t, changes.VocabularyChanges, 1)
+	assert.Equal(t, PropertyRemoved, changes.VocabularyChanges[0].ChangeType)
+	assert.True(t, changes.VocabularyChanges[0].Breaking)
+}
+
+// TestCompareSchemas_Vocabulary_Modified tests $vocabulary value modification detection
+func TestCompareSchemas_Vocabulary_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": false
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Len(t, changes.VocabularyChanges, 1)
+	assert.Equal(t, Modified, changes.VocabularyChanges[0].ChangeType)
+	assert.True(t, changes.VocabularyChanges[0].Breaking)
+}
+
+// TestCompareSchemas_Vocabulary_NoChange tests identical $vocabulary produces no changes
+func TestCompareSchemas_Vocabulary_NoChange(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_Vocabulary_AddedFromNil tests $vocabulary added where none existed
+func TestCompareSchemas_Vocabulary_AddedFromNil(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Len(t, changes.VocabularyChanges, 1)
+	assert.Equal(t, PropertyAdded, changes.VocabularyChanges[0].ChangeType)
+}
+
+// TestCompareSchemas_Vocabulary_RemovedToNil tests $vocabulary removed to nil
+func TestCompareSchemas_Vocabulary_RemovedToNil(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Len(t, changes.VocabularyChanges, 1)
+	assert.Equal(t, PropertyRemoved, changes.VocabularyChanges[0].ChangeType)
+}
+
+// TestCheckVocabularyChanges_BothNil tests the checkVocabularyChanges helper with both nil
+func TestCheckVocabularyChanges_BothNil(t *testing.T) {
+	changes := checkVocabularyChanges(nil, nil)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_Vocabulary_MultipleChanges tests multiple vocabulary changes at once
+func TestCompareSchemas_Vocabulary_MultipleChanges(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+        "https://json-schema.org/draft/2020-12/vocab/validation": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": false
+        "https://json-schema.org/draft/2020-12/vocab/applicator": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	// Should have 3 changes: core modified, validation removed, applicator added
+	assert.Equal(t, 3, changes.TotalChanges())
+	assert.Len(t, changes.VocabularyChanges, 3)
+}
+
+// TestSchemaChanges_TotalBreakingChanges_ContentSchema tests that TotalBreakingChanges
+// correctly counts breaking changes from ContentSchemaChanges
+func TestSchemaChanges_TotalBreakingChanges_ContentSchema(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    EncodedData:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object
+        properties:
+          name:
+            type: string`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    EncodedData:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object
+        properties:
+          name:
+            type: integer`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("EncodedData").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("EncodedData").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.NotNil(t, changes.ContentSchemaChanges)
+	// ContentSchemaChanges should have changes and TotalBreakingChanges should count them
+	assert.GreaterOrEqual(t, changes.ContentSchemaChanges.TotalChanges(), 1)
+	// TotalBreakingChanges on parent should include ContentSchemaChanges breaking changes
+	assert.GreaterOrEqual(t, changes.TotalBreakingChanges(), 1)
+}
+
+// TestSchemaChanges_TotalBreakingChanges_Vocabulary tests that TotalBreakingChanges
+// correctly counts breaking changes from VocabularyChanges
+func TestSchemaChanges_TotalBreakingChanges_Vocabulary(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    MetaSchema:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    MetaSchema:
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("MetaSchema").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("MetaSchema").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Len(t, changes.VocabularyChanges, 1)
+	// Vocabulary addition is breaking by default
+	assert.True(t, changes.VocabularyChanges[0].Breaking)
+	// TotalBreakingChanges should count the vocabulary change
+	assert.Equal(t, 1, changes.TotalBreakingChanges())
+}
