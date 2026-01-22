@@ -2671,3 +2671,106 @@ func TestSchemaDynamicValue_Hash_IsB(t *testing.T) {
 	assert.False(t, value.IsA())
 	assert.True(t, value.IsB())
 }
+
+func TestSchema_DynamicAnchor(t *testing.T) {
+	testSpec := `type: object
+description: schema with dynamic anchor
+$dynamicAnchor: myDynamicAnchor`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	sch := Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &sch)
+	assert.NoError(t, mbErr)
+
+	schErr := sch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+	assert.Equal(t, "schema with dynamic anchor", sch.Description.Value)
+	assert.Equal(t, "myDynamicAnchor", sch.DynamicAnchor.Value)
+}
+
+func TestSchema_DynamicRef(t *testing.T) {
+	testSpec := `type: object
+description: schema with dynamic ref
+$dynamicRef: "#myDynamicAnchor"`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	sch := Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &sch)
+	assert.NoError(t, mbErr)
+
+	schErr := sch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+	assert.Equal(t, "schema with dynamic ref", sch.Description.Value)
+	assert.Equal(t, "#myDynamicAnchor", sch.DynamicRef.Value)
+}
+
+func TestSchema_DynamicAnchorAndRef(t *testing.T) {
+	testSpec := `type: object
+description: schema with both dynamic anchor and ref
+$dynamicAnchor: myAnchor
+$dynamicRef: "#otherAnchor"`
+
+	var rootNode yaml.Node
+	mErr := yaml.Unmarshal([]byte(testSpec), &rootNode)
+	assert.NoError(t, mErr)
+
+	sch := Schema{}
+	mbErr := low.BuildModel(rootNode.Content[0], &sch)
+	assert.NoError(t, mbErr)
+
+	schErr := sch.Build(context.Background(), rootNode.Content[0], nil)
+	assert.NoError(t, schErr)
+	assert.Equal(t, "schema with both dynamic anchor and ref", sch.Description.Value)
+	assert.Equal(t, "myAnchor", sch.DynamicAnchor.Value)
+	assert.Equal(t, "#otherAnchor", sch.DynamicRef.Value)
+}
+
+func TestSchema_Hash_IncludesDynamicAnchorAndRef(t *testing.T) {
+	testSpec1 := `type: object
+$dynamicAnchor: anchor1
+$dynamicRef: "#ref1"`
+
+	testSpec2 := `type: object
+$dynamicAnchor: anchor2
+$dynamicRef: "#ref2"`
+
+	var rootNode1 yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec1), &rootNode1)
+	sch1 := Schema{}
+	_ = low.BuildModel(rootNode1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), rootNode1.Content[0], nil)
+
+	var rootNode2 yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec2), &rootNode2)
+	sch2 := Schema{}
+	_ = low.BuildModel(rootNode2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), rootNode2.Content[0], nil)
+
+	assert.NotEqual(t, sch1.Hash(), sch2.Hash())
+}
+
+func TestSchema_Hash_SameDynamicAnchorAndRef(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: sameAnchor
+$dynamicRef: "#sameRef"`
+
+	var rootNode1 yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &rootNode1)
+	sch1 := Schema{}
+	_ = low.BuildModel(rootNode1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), rootNode1.Content[0], nil)
+
+	var rootNode2 yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &rootNode2)
+	sch2 := Schema{}
+	_ = low.BuildModel(rootNode2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), rootNode2.Content[0], nil)
+
+	assert.Equal(t, sch1.Hash(), sch2.Hash())
+}
