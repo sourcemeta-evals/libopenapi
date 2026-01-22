@@ -1811,3 +1811,81 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	// Test $dynamicAnchor and $dynamicRef parsing in high-level schema (JSON Schema 2020-12)
+	yml := `$dynamicAnchor: myAnchor
+$dynamicRef: "#myAnchor"
+type: object
+properties:
+  name:
+    type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Equal(t, "myAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "#myAnchor", compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchor_Only(t *testing.T) {
+	// Test $dynamicAnchor only in high-level schema
+	yml := `$dynamicAnchor: recursiveAnchor
+type: array
+items:
+  type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Equal(t, "recursiveAnchor", compiled.DynamicAnchor)
+	assert.Empty(t, compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicRef_Only(t *testing.T) {
+	// Test $dynamicRef only in high-level schema
+	yml := `$dynamicRef: "#node"
+type: object`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Empty(t, compiled.DynamicAnchor)
+	assert.Equal(t, "#node", compiled.DynamicRef)
+}

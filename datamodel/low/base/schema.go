@@ -108,6 +108,8 @@ type Schema struct {
 	UnevaluatedItems      low.NodeReference[*SchemaProxy]
 	UnevaluatedProperties low.NodeReference[*SchemaDynamicValue[*SchemaProxy, bool]]
 	Anchor                low.NodeReference[string]
+	DynamicAnchor         low.NodeReference[string]
+	DynamicRef            low.NodeReference[string]
 
 	// Compatible with all versions
 	Title                low.NodeReference[string]
@@ -825,6 +827,22 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	if anchorNode != nil {
 		s.Anchor = low.NodeReference[string]{
 			Value: anchorNode.Value, KeyNode: anchorLabel, ValueNode: anchorNode,
+		}
+	}
+
+	// handle dynamicAnchor if set. (3.1 / JSON Schema 2020-12)
+	_, dynamicAnchorLabel, dynamicAnchorNode := utils.FindKeyNodeFullTop(DynamicAnchorLabel, root.Content)
+	if dynamicAnchorNode != nil {
+		s.DynamicAnchor = low.NodeReference[string]{
+			Value: dynamicAnchorNode.Value, KeyNode: dynamicAnchorLabel, ValueNode: dynamicAnchorNode,
+		}
+	}
+
+	// handle dynamicRef if set. (3.1 / JSON Schema 2020-12)
+	_, dynamicRefLabel, dynamicRefNode := utils.FindKeyNodeFullTop(DynamicRefLabel, root.Content)
+	if dynamicRefNode != nil {
+		s.DynamicRef = low.NodeReference[string]{
+			Value: dynamicRefNode.Value, KeyNode: dynamicRefLabel, ValueNode: dynamicRefNode,
 		}
 	}
 

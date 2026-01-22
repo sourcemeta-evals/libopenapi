@@ -2671,3 +2671,59 @@ func TestSchemaDynamicValue_Hash_IsB(t *testing.T) {
 	assert.False(t, value.IsA())
 	assert.True(t, value.IsB())
 }
+
+func TestSchema_Build_DynamicAnchorAndDynamicRef(t *testing.T) {
+	// Test $dynamicAnchor and $dynamicRef parsing (JSON Schema 2020-12)
+	yml := `$dynamicAnchor: myAnchor
+$dynamicRef: "#myAnchor"
+type: object
+properties:
+  name:
+    type: string`
+
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+
+	sch := Schema{}
+	err := sch.Build(context.Background(), rootNode.Content[0], nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "myAnchor", sch.DynamicAnchor.Value)
+	assert.Equal(t, "#myAnchor", sch.DynamicRef.Value)
+	assert.NotNil(t, sch.DynamicAnchor.ValueNode)
+	assert.NotNil(t, sch.DynamicRef.ValueNode)
+}
+
+func TestSchema_Build_DynamicAnchor_Only(t *testing.T) {
+	// Test $dynamicAnchor only
+	yml := `$dynamicAnchor: recursiveAnchor
+type: array
+items:
+  type: string`
+
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+
+	sch := Schema{}
+	err := sch.Build(context.Background(), rootNode.Content[0], nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "recursiveAnchor", sch.DynamicAnchor.Value)
+	assert.True(t, sch.DynamicRef.IsEmpty())
+}
+
+func TestSchema_Build_DynamicRef_Only(t *testing.T) {
+	// Test $dynamicRef only
+	yml := `$dynamicRef: "#node"
+type: object`
+
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+
+	sch := Schema{}
+	err := sch.Build(context.Background(), rootNode.Content[0], nil)
+
+	assert.NoError(t, err)
+	assert.True(t, sch.DynamicAnchor.IsEmpty())
+	assert.Equal(t, "#node", sch.DynamicRef.Value)
+}
