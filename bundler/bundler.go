@@ -114,8 +114,8 @@ func BundleDocumentWithConfig(model *v3.Document, bundleConfig *BundleInlineConf
 
 // BundleCompositionConfig is used to configure the composition of OpenAPI documents when using BundleDocumentComposed.
 type BundleCompositionConfig struct {
-	Delimiter           string // Delimiter is used to separate clashing names. Defaults to `__`.
-	StrictValidation    bool   // StrictValidation will cause bundling to fail on invalid OpenAPI specs (e.g. $ref with siblings)
+	Delimiter        string // Delimiter is used to separate clashing names. Defaults to `__`.
+	StrictValidation bool   // StrictValidation will cause bundling to fail on invalid OpenAPI specs (e.g. $ref with siblings)
 }
 
 // BundleInlineConfig provides configuration options for inline bundling.
@@ -289,11 +289,11 @@ func bundleWithConfig(model *v3.Document, config *BundleInlineConfig) ([]byte, e
 
 // externalSchemaRef represents an external schema that needs to be copied to the root document's components.
 type externalSchemaRef struct {
-	idx         *index.SpecIndex  // Source index where the schema is defined
-	ref         *index.Reference  // The reference object
-	schemaName  string            // The target name in components
-	fullDef     string            // The full definition path (e.g., "/path/to/file.yaml#/components/schemas/Cat")
-	originalRef string            // The original reference string (e.g., "#/components/schemas/Cat")
+	idx         *index.SpecIndex // Source index where the schema is defined
+	ref         *index.Reference // The reference object
+	schemaName  string           // The target name in components
+	fullDef     string           // The full definition path (e.g., "/path/to/file.yaml#/components/schemas/Cat")
+	originalRef string           // The original reference string (e.g., "#/components/schemas/Cat")
 }
 
 // resolveDiscriminatorExternalRefs handles copying external schemas referenced by discriminators

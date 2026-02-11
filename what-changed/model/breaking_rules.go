@@ -336,6 +336,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			DynamicAnchor:         rule(false, true, true), // $dynamicAnchor: modification/removal is breaking
 			DynamicRef:            rule(false, true, true), // $dynamicRef: modification/removal is breaking
 			Id:                    rule(true, true, true),  // $id: all changes are breaking (affects reference resolution)
+			Comment:               rule(false, false, false),
+			ContentSchema:         rule(true, true, true),
+			Vocabulary:            rule(true, true, true),
 			DependentRequired:     rule(false, true, true),
 			XML:                   rule(false, false, true),
 			SchemaDialect:         rule(true, true, true),
@@ -397,9 +400,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 			Scopes:            rule(false, false, true),
-			Flow:              rule(true, true, true),   // Swagger 2.0
-			AuthorizationURL:  rule(true, true, true),   // Swagger 2.0
-			TokenURL:          rule(true, true, true),   // Swagger 2.0
+			Flow:              rule(true, true, true), // Swagger 2.0
+			AuthorizationURL:  rule(true, true, true), // Swagger 2.0
+			TokenURL:          rule(true, true, true), // Swagger 2.0
 			Deprecated:        rule(false, false, false),
 		},
 

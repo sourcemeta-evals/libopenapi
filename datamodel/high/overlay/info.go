@@ -13,8 +13,8 @@ import (
 // Info represents a high-level Overlay Info Object.
 // https://spec.openapis.org/overlay/v1.0.0#info-object
 type Info struct {
-	Title      string                               `json:"title,omitempty" yaml:"title,omitempty"`
-	Version    string                               `json:"version,omitempty" yaml:"version,omitempty"`
+	Title      string                              `json:"title,omitempty" yaml:"title,omitempty"`
+	Version    string                              `json:"version,omitempty" yaml:"version,omitempty"`
 	Extensions *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
 	low        *low.Info
 }

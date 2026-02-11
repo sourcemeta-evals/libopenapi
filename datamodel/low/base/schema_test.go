@@ -2737,6 +2737,41 @@ description: Schema A`
 }
 
 // TestSchema_Id_Empty tests that empty $id is not set
+func TestSchema_202012_Keywords(t *testing.T) {
+	yml := `$comment: just a note
+contentSchema:
+  type: object
+$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true
+  https://json-schema.org/draft/2020-12/vocab/applicator: false`
+
+	var root yaml.Node
+	mErr := yaml.Unmarshal([]byte(yml), &root)
+	assert.NoError(t, mErr)
+	idx := index.NewSpecIndex(&root)
+
+	var sch Schema
+	mbErr := low.BuildModel(root.Content[0], &sch)
+	assert.NoError(t, mbErr)
+	err := sch.Build(context.Background(), root.Content[0], idx)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "just a note", sch.Comment.Value)
+	// contentSchema captured
+	assert.False(t, sch.ContentSchema.IsEmpty())
+	assert.NotNil(t, sch.ContentSchema.ValueNode)
+	// vocabulary captured and values correct
+	if assert.NotNil(t, sch.Vocabulary.Value) {
+		vals := sch.Vocabulary.Value
+		found := make(map[string]bool)
+		for k, v := range vals.FromOldest() {
+			found[k.Value] = v.Value
+		}
+		assert.Equal(t, true, found["https://json-schema.org/draft/2020-12/vocab/core"])
+		assert.Equal(t, false, found["https://json-schema.org/draft/2020-12/vocab/applicator"])
+	}
+}
+
 func TestSchema_Id_Empty(t *testing.T) {
 	yml := `type: object
 description: A schema without $id`

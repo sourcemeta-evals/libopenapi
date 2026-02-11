@@ -1892,6 +1892,31 @@ description: A pet schema`
 }
 
 // TestNewSchema_Id_Empty tests that empty $id results in empty string
+func TestNewSchema_202012_Keywords(t *testing.T) {
+	yml := `$comment: just a note
+contentSchema:
+  type: object
+$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true
+  https://json-schema.org/draft/2020-12/vocab/applicator: false`
+	var root yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &root)
+	idx := index.NewSpecIndex(&root)
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(root.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), root.Content[0], idx)
+	highSch := NewSchema(&lowSch)
+	assert.Equal(t, "just a note", highSch.Comment)
+	if assert.NotNil(t, highSch.ContentSchema) {
+		// proxy exists
+	}
+	if assert.NotNil(t, highSch.Vocabulary) {
+		v, ok := highSch.Vocabulary.Get("https://json-schema.org/draft/2020-12/vocab/core")
+		assert.True(t, ok)
+		assert.True(t, v)
+	}
+}
+
 func TestNewSchema_Id_Empty(t *testing.T) {
 	yml := `type: object
 description: A schema without $id`

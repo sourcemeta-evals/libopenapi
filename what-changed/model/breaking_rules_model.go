@@ -193,6 +193,9 @@ type SchemaRules struct {
 	DynamicAnchor         *BreakingChangeRule `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
 	DynamicRef            *BreakingChangeRule `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
 	Id                    *BreakingChangeRule `json:"$id,omitempty" yaml:"$id,omitempty"`
+	Comment               *BreakingChangeRule `json:"$comment,omitempty" yaml:"$comment,omitempty"`
+	ContentSchema         *BreakingChangeRule `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+	Vocabulary            *BreakingChangeRule `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
 	DependentRequired     *BreakingChangeRule `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	XML                   *BreakingChangeRule `json:"xml,omitempty" yaml:"xml,omitempty"`
 	SchemaDialect         *BreakingChangeRule `json:"schemaDialect,omitempty" yaml:"schemaDialect,omitempty"`
@@ -257,9 +260,9 @@ type SecuritySchemeRules struct {
 	OAuth2MetadataUrl *BreakingChangeRule `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
 	Flows             *BreakingChangeRule `json:"flows,omitempty" yaml:"flows,omitempty"`
 	Scopes            *BreakingChangeRule `json:"scopes,omitempty" yaml:"scopes,omitempty"`
-	Flow              *BreakingChangeRule `json:"flow,omitempty" yaml:"flow,omitempty"`               // Swagger 2.0
+	Flow              *BreakingChangeRule `json:"flow,omitempty" yaml:"flow,omitempty"`                         // Swagger 2.0
 	AuthorizationURL  *BreakingChangeRule `json:"authorizationUrl,omitempty" yaml:"authorizationUrl,omitempty"` // Swagger 2.0
-	TokenURL          *BreakingChangeRule `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`       // Swagger 2.0
+	TokenURL          *BreakingChangeRule `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`                 // Swagger 2.0
 	Deprecated        *BreakingChangeRule `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
 }
 
