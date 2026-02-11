@@ -86,6 +86,15 @@ type Schema struct {
 	// 3.1+ only, JSON Schema 2020-12 dynamic reference for recursive schema resolution
 	DynamicRef string `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
 
+	// JSON Schema 2020-12 $comment - provides a comment for schema maintainers
+	Comment string `json:"$comment,omitempty" yaml:"$comment,omitempty"`
+
+	// JSON Schema 2020-12 contentSchema - schema for validating content after decoding
+	ContentSchema *SchemaProxy `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+
+	// JSON Schema 2020-12 $vocabulary - declares which vocabularies are used
+	Vocabulary *orderedmap.Map[string, bool] `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
+
 	// Compatible with all versions
 	Not                  *SchemaProxy                          `json:"not,omitempty" yaml:"not,omitempty"`
 	Properties           *orderedmap.Map[string, *SchemaProxy] `json:"properties,omitempty" yaml:"properties,omitempty"`
@@ -326,6 +335,22 @@ func NewSchema(schema *base.Schema) *Schema {
 	}
 	if !schema.DynamicRef.IsEmpty() {
 		s.DynamicRef = schema.DynamicRef.Value
+	}
+	if !schema.Comment.IsEmpty() {
+		s.Comment = schema.Comment.Value
+	}
+	if !schema.ContentSchema.IsEmpty() {
+		s.ContentSchema = NewSchemaProxy(&lowmodel.NodeReference[*base.SchemaProxy]{
+			ValueNode: schema.ContentSchema.ValueNode,
+			Value:     schema.ContentSchema.Value,
+		})
+	}
+	if schema.Vocabulary.Value != nil {
+		vocab := orderedmap.New[string, bool]()
+		for k, v := range schema.Vocabulary.Value.FromOldest() {
+			vocab.Set(k.Value, v.Value)
+		}
+		s.Vocabulary = vocab
 	}
 
 	var enum []*yaml.Node

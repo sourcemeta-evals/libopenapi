@@ -339,6 +339,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			DependentRequired:     rule(false, true, true),
 			XML:                   rule(false, false, true),
 			SchemaDialect:         rule(true, true, true),
+			Comment:               rule(false, false, false),
+			ContentSchema:         rule(false, true, false),
+			Vocabulary:            rule(true, true, true),
 		},
 
 		Discriminator: &DiscriminatorRules{
@@ -397,9 +400,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 			Scopes:            rule(false, false, true),
-			Flow:              rule(true, true, true),   // Swagger 2.0
-			AuthorizationURL:  rule(true, true, true),   // Swagger 2.0
-			TokenURL:          rule(true, true, true),   // Swagger 2.0
+			Flow:              rule(true, true, true), // Swagger 2.0
+			AuthorizationURL:  rule(true, true, true), // Swagger 2.0
+			TokenURL:          rule(true, true, true), // Swagger 2.0
 			Deprecated:        rule(false, false, false),
 		},
 

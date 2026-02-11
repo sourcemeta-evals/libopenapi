@@ -5156,3 +5156,263 @@ components:
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.Nil(t, changes)
 }
+
+func TestCompareSchemas_CommentModified(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $comment: "old comment"`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $comment: "new comment"`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Len(t, changes.GetAllChanges(), 1)
+	assert.Equal(t, 0, changes.TotalBreakingChanges())
+}
+
+func TestCompareSchemas_CommentAdded(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $comment: "a comment"`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 0, changes.TotalBreakingChanges())
+}
+
+func TestCompareSchemas_CommentRemoved(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $comment: "a comment"`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 0, changes.TotalBreakingChanges())
+}
+
+func TestCompareSchemas_ContentSchemaModified(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string
+      contentSchema:
+        type: array`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Len(t, changes.GetAllChanges(), 1)
+	assert.NotNil(t, changes.ContentSchemaChanges)
+}
+
+func TestCompareSchemas_ContentSchemaAdded(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string
+      contentSchema:
+        type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, v3.ContentSchemaLabel, changes.Changes[0].Property)
+}
+
+func TestCompareSchemas_ContentSchemaRemoved(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: string`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, v3.ContentSchemaLabel, changes.Changes[0].Property)
+}
+
+func TestCompareSchemas_VocabularyModified(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": false`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges())
+}
+
+func TestCompareSchemas_VocabularyAdded(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    OK:
+      type: object
+      $vocabulary:
+        "https://json-schema.org/draft/2020-12/vocab/core": true`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("OK").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("OK").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges())
+}
