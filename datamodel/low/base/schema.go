@@ -108,6 +108,8 @@ type Schema struct {
 	UnevaluatedItems      low.NodeReference[*SchemaProxy]
 	UnevaluatedProperties low.NodeReference[*SchemaDynamicValue[*SchemaProxy, bool]]
 	Anchor                low.NodeReference[string]
+	DynamicAnchor         low.NodeReference[string]
+	DynamicRef            low.NodeReference[string]
 
 	// Compatible with all versions
 	Title                low.NodeReference[string]
@@ -491,8 +493,16 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteString(s.Anchor.Value)
 		sb.WriteByte('|')
 	}
+	if !s.DynamicAnchor.IsEmpty() {
+		sb.WriteString(s.DynamicAnchor.Value)
+		sb.WriteByte('|')
+	}
+	if !s.DynamicRef.IsEmpty() {
+		sb.WriteString(s.DynamicRef.Value)
+		sb.WriteByte('|')
+	}
 
-	// Process dependent schemas and pattern properties
+	// Process dependent schemasand pattern properties
 	for _, hash := range low.AppendMapHashes(nil, orderedmap.SortAlpha(s.DependentSchemas.Value)) {
 		sb.WriteString(hash)
 		sb.WriteByte('|')
@@ -633,6 +643,8 @@ func (s *Schema) GetRootNode() *yaml.Node {
 //   - UnevaluatedItems
 //   - UnevaluatedProperties
 //   - Anchor
+//   - DynamicAnchor
+//   - DynamicRef
 func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) error {
 	if root == nil {
 		return fmt.Errorf("cannot build schema from a nil node")
@@ -825,6 +837,22 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	if anchorNode != nil {
 		s.Anchor = low.NodeReference[string]{
 			Value: anchorNode.Value, KeyNode: anchorLabel, ValueNode: anchorNode,
+		}
+	}
+
+	// handle dynamic anchor if set. (3.1 / 2020-12)
+	_, dynAnchorLabel, dynAnchorNode := utils.FindKeyNodeFullTop(DynamicAnchorLabel, root.Content)
+	if dynAnchorNode != nil {
+		s.DynamicAnchor = low.NodeReference[string]{
+			Value: dynAnchorNode.Value, KeyNode: dynAnchorLabel, ValueNode: dynAnchorNode,
+		}
+	}
+
+	// handle dynamic ref if set. (3.1 / 2020-12)
+	_, dynRefLabel, dynRefNode := utils.FindKeyNodeFullTop(DynamicRefLabel, root.Content)
+	if dynRefNode != nil {
+		s.DynamicRef = low.NodeReference[string]{
+			Value: dynRefNode.Value, KeyNode: dynRefLabel, ValueNode: dynRefNode,
 		}
 	}
 

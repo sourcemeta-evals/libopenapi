@@ -267,6 +267,8 @@ minItems: 10
 maxProperties: 30
 minProperties: 1
 $anchor: anchor
+$dynamicAnchor: myDynAnchor
+$dynamicRef: '#myDynAnchor'
 $schema: https://example.com/custom-json-schema-dialect`
 
 	var compNode yaml.Node
@@ -312,6 +314,8 @@ $schema: https://example.com/custom-json-schema-dialect`
 	assert.True(t, *compiled.Deprecated)
 	assert.True(t, *compiled.Nullable)
 	assert.Equal(t, "anchor", compiled.Anchor)
+	assert.Equal(t, "myDynAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "#myDynAnchor", compiled.DynamicRef)
 	assert.Equal(t, "https://example.com/custom-json-schema-dialect", compiled.SchemaTypeRef)
 
 	wentLow := compiled.GoLow()
@@ -320,7 +324,7 @@ $schema: https://example.com/custom-json-schema-dialect`
 
 	// now render it out!
 	schemaBytes, _ := compiled.Render()
-	assert.Len(t, schemaBytes, 3473)
+	assert.Len(t, schemaBytes, 3529)
 }
 
 func TestSchemaObjectWithAllOfSequenceOrder(t *testing.T) {
@@ -1810,4 +1814,59 @@ oneOf:
 	// Should contain the inline schema properties, not a $ref
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
+}
+
+func TestHighSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	yml := `type: object
+$dynamicAnchor: genericItem
+$dynamicRef: '#genericItem'`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Equal(t, "genericItem", highSchema.DynamicAnchor)
+	assert.Equal(t, "#genericItem", highSchema.DynamicRef)
+}
+
+func TestHighSchema_DynamicAnchorOnly(t *testing.T) {
+	yml := `type: object
+$dynamicAnchor: baseType`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Equal(t, "baseType", highSchema.DynamicAnchor)
+	assert.Empty(t, highSchema.DynamicRef)
+}
+
+func TestHighSchema_DynamicRefOnly(t *testing.T) {
+	yml := `type: object
+$dynamicRef: '#baseType'`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Empty(t, highSchema.DynamicAnchor)
+	assert.Equal(t, "#baseType", highSchema.DynamicRef)
+}
+
+func TestHighSchema_NoDynamicAnchorOrRef(t *testing.T) {
+	yml := `type: object`
+
+	highSchema := getHighSchema(t, yml)
+
+	assert.Empty(t, highSchema.DynamicAnchor)
+	assert.Empty(t, highSchema.DynamicRef)
+}
+
+func TestHighSchema_DynamicAnchorAndRef_Render(t *testing.T) {
+	yml := `type: object
+$dynamicAnchor: myAnchor
+$dynamicRef: '#myAnchor'`
+
+	highSchema := getHighSchema(t, yml)
+
+	schemaBytes, err := highSchema.Render()
+	assert.NoError(t, err)
+
+	output := string(schemaBytes)
+	assert.Contains(t, output, "$dynamicAnchor: myAnchor")
+	assert.Contains(t, output, "$dynamicRef: '#myAnchor'")
 }
