@@ -286,11 +286,11 @@ func bundleWithConfig(model *v3.Document, config *BundleInlineConfig) ([]byte, e
 
 // externalSchemaRef represents an external schema that needs to be copied to the root document's components.
 type externalSchemaRef struct {
-	idx         *index.SpecIndex  // Source index where the schema is defined
-	ref         *index.Reference  // The reference object
-	schemaName  string            // The target name in components
-	fullDef     string            // The full definition path (e.g., "/path/to/file.yaml#/components/schemas/Cat")
-	originalRef string            // The original reference string (e.g., "#/components/schemas/Cat")
+	idx         *index.SpecIndex // Source index where the schema is defined
+	ref         *index.Reference // The reference object
+	schemaName  string           // The target name in components
+	fullDef     string           // The full definition path (e.g., "/path/to/file.yaml#/components/schemas/Cat")
+	originalRef string           // The original reference string (e.g., "#/components/schemas/Cat")
 }
 
 // resolveDiscriminatorExternalRefs handles copying external schemas referenced by discriminators
