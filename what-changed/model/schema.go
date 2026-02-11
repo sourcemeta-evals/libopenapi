@@ -1329,6 +1329,48 @@ func checkSchemaPropertyChanges(
 		Original:  lSchema,
 		New:       rSchema,
 	})
+	lnv = nil
+	rnv = nil
+
+	if lSchema != nil && lSchema.DynamicAnchor.ValueNode != nil {
+		lnv = lSchema.DynamicAnchor.ValueNode
+	}
+	if rSchema != nil && rSchema.DynamicAnchor.ValueNode != nil {
+		rnv = rSchema.DynamicAnchor.ValueNode
+	}
+	// DynamicAnchor
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     v3.DynamicAnchorLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropDynamicAnchor),
+		Component: CompSchema,
+		Property:  PropDynamicAnchor,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	if lSchema != nil && lSchema.DynamicRef.ValueNode != nil {
+		lnv = lSchema.DynamicRef.ValueNode
+	}
+	if rSchema != nil && rSchema.DynamicRef.ValueNode != nil {
+		rnv = rSchema.DynamicRef.ValueNode
+	}
+	// DynamicRef
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     v3.DynamicRefLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropDynamicRef),
+		Component: CompSchema,
+		Property:  PropDynamicRef,
+		Original:  lSchema,
+		New:       rSchema,
+	})
 
 	// Required
 	j := make(map[string]int)
