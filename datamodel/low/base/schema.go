@@ -502,7 +502,7 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteByte('|')
 	}
 
-	// Process dependent schemasand pattern properties
+	// Process dependent schemas and pattern properties
 	for _, hash := range low.AppendMapHashes(nil, orderedmap.SortAlpha(s.DependentSchemas.Value)) {
 		sb.WriteString(hash)
 		sb.WriteByte('|')
