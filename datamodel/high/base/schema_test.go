@@ -1811,3 +1811,82 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: meta
+$dynamicRef: "#meta"
+description: schema with dynamic keywords`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "meta", compiled.DynamicAnchor)
+	assert.Equal(t, "#meta", compiled.DynamicRef)
+	assert.Equal(t, "schema with dynamic keywords", compiled.Description)
+
+	schemaBytes, _ := compiled.Render()
+	assert.Contains(t, string(schemaBytes), "$dynamicAnchor")
+	assert.Contains(t, string(schemaBytes), "$dynamicRef")
+}
+
+func TestNewSchema_DynamicAnchorOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myAnchor`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "myAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "", compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicRefOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicRef: "#someAnchor"`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "", compiled.DynamicAnchor)
+	assert.Equal(t, "#someAnchor", compiled.DynamicRef)
+}
