@@ -2738,8 +2738,7 @@ description: Schema A`
 
 // TestSchema_Id_Empty tests that empty $id is not set
 func TestSchema_Id_Empty(t *testing.T) {
-	yml := `type: object
-description: A schema without $id`
+	yml := "type: object\ndescription: A schema without $id"
 
 	var idxNode yaml.Node
 	_ = yaml.Unmarshal([]byte(yml), &idxNode)
@@ -2752,4 +2751,41 @@ description: A schema without $id`
 	assert.NoError(t, err)
 
 	assert.True(t, sch.Id.IsEmpty())
+}
+
+// TestSchema_JSONSchema2020_12_Keywords verifies $comment, $vocabulary, and contentSchema are parsed
+func TestSchema_JSONSchema2020_12_Keywords(t *testing.T) {
+	yml := `type: string
+$comment: "a note"
+$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true
+contentSchema:
+  type: integer`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	// $comment
+	assert.False(t, sch.Comment.IsEmpty())
+	assert.Equal(t, "a note", sch.Comment.Value)
+	// $vocabulary
+	assert.NotNil(t, sch.Vocabulary.Value)
+	found := false
+	for k, v := range sch.Vocabulary.Value.FromOldest() {
+		if k.Value == "https://json-schema.org/draft/2020-12/vocab/core" {
+			assert.True(t, v.Value)
+			found = true
+		}
+	}
+	assert.True(t, found)
+	// contentSchema
+	assert.False(t, sch.ContentSchema.IsEmpty())
+	assert.NotNil(t, sch.ContentSchema.Value)
 }

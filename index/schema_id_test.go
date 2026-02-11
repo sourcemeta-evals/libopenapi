@@ -966,12 +966,12 @@ items:
 			checkVal: "second",
 		},
 		{
-			name:    "navigate to non-existent path",
+			name:     "navigate to non-existent path",
 			fragment: "#/nonexistent",
 			wantNil:  true,
 		},
 		{
-			name:    "navigate to invalid array index",
+			name:     "navigate to invalid array index",
 			fragment: "#/items/99",
 			wantNil:  true,
 		},

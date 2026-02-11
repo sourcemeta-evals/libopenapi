@@ -43,6 +43,7 @@ type SchemaChanges struct {
 	ThenChanges                  *SchemaChanges            `json:"then,omitempty" yaml:"then,omitempty"`
 	PropertyNamesChanges         *SchemaChanges            `json:"propertyNames,omitempty" yaml:"propertyNames,omitempty"`
 	ContainsChanges              *SchemaChanges            `json:"contains,omitempty" yaml:"contains,omitempty"`
+	ContentSchemaChanges         *SchemaChanges            `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
 	UnevaluatedItemsChanges      *SchemaChanges            `json:"unevaluatedItems,omitempty" yaml:"unevaluatedItems,omitempty"`
 	UnevaluatedPropertiesChanges *SchemaChanges            `json:"unevaluatedProperties,omitempty" yaml:"unevaluatedProperties,omitempty"`
 	DependentSchemasChanges      map[string]*SchemaChanges `json:"dependentSchemas,omitempty" yaml:"dependentSchemas,omitempty"`
@@ -144,6 +145,9 @@ func (s *SchemaChanges) GetAllChanges() []*Change {
 	if s.ContainsChanges != nil {
 		changes = append(changes, s.ContainsChanges.GetAllChanges()...)
 	}
+	if s.ContentSchemaChanges != nil {
+		changes = append(changes, s.ContentSchemaChanges.GetAllChanges()...)
+	}
 	if s.UnevaluatedItemsChanges != nil {
 		changes = append(changes, s.UnevaluatedItemsChanges.GetAllChanges()...)
 	}
@@ -242,6 +246,9 @@ func (s *SchemaChanges) TotalChanges() int {
 	if s.ContainsChanges != nil {
 		t += s.ContainsChanges.TotalChanges()
 	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalChanges()
+	}
 	if s.UnevaluatedItemsChanges != nil {
 		t += s.UnevaluatedItemsChanges.TotalChanges()
 	}
@@ -337,6 +344,9 @@ func (s *SchemaChanges) TotalBreakingChanges() int {
 	}
 	if s.ContainsChanges != nil {
 		t += s.ContainsChanges.TotalBreakingChanges()
+	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalBreakingChanges()
 	}
 	if s.UnevaluatedItemsChanges != nil {
 		t += s.UnevaluatedItemsChanges.TotalBreakingChanges()
@@ -1191,6 +1201,61 @@ func checkSchemaPropertyChanges(
 	})
 	lnv = nil
 	rnv = nil
+
+	// $comment (JSON Schema 2020-12)
+	if lSchema != nil && lSchema.Comment.ValueNode != nil {
+		lnv = lSchema.Comment.ValueNode
+	}
+	if rSchema != nil && rSchema.Comment.ValueNode != nil {
+		rnv = rSchema.Comment.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     base.CommentLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropComment),
+		Component: CompSchema,
+		Property:  PropComment,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	// $vocabulary (JSON Schema 2020-12)
+	if lSchema != nil && lSchema.Vocabulary.ValueNode != nil {
+		lnv = lSchema.Vocabulary.ValueNode
+	}
+	if rSchema != nil && rSchema.Vocabulary.ValueNode != nil {
+		rnv = rSchema.Vocabulary.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     base.VocabularyLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropVocabulary),
+		Component: CompSchema,
+		Property:  PropVocabulary,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	// contentSchema (JSON Schema 2020-12)
+	if lSchema != nil && lSchema.ContentSchema.Value != nil && rSchema != nil && rSchema.ContentSchema.Value != nil {
+		sc.ContentSchemaChanges = CompareSchemas(lSchema.ContentSchema.Value, rSchema.ContentSchema.Value)
+	}
+	if (lSchema == nil || lSchema.ContentSchema.Value == nil) && (rSchema != nil && rSchema.ContentSchema.Value != nil) {
+		CreateChange(changes, ObjectAdded, v3.ContentSchemaLabel,
+			nil, rSchema.ContentSchema.ValueNode, BreakingAdded(CompSchema, PropContentSchema), nil, rSchema.ContentSchema.Value)
+	}
+	if (lSchema != nil && lSchema.ContentSchema.Value != nil) && (rSchema == nil || rSchema.ContentSchema.Value == nil) {
+		CreateChange(changes, ObjectRemoved, v3.ContentSchemaLabel,
+			lSchema.ContentSchema.ValueNode, nil, BreakingRemoved(CompSchema, PropContentSchema), lSchema.ContentSchema.Value, nil)
+	}
 
 	if lSchema != nil && lSchema.Default.ValueNode != nil {
 		lnv = lSchema.Default.ValueNode
