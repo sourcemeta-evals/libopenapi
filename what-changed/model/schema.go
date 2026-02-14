@@ -48,6 +48,7 @@ type SchemaChanges struct {
 	DependentSchemasChanges      map[string]*SchemaChanges `json:"dependentSchemas,omitempty" yaml:"dependentSchemas,omitempty"`
 	DependentRequiredChanges     []*Change                 `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	PatternPropertiesChanges     map[string]*SchemaChanges `json:"patternProperties,omitempty" yaml:"patternProperties,omitempty"`
+	ContentSchemaChanges         *SchemaChanges            `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
 }
 
 func (s *SchemaChanges) GetPropertyChanges() []*Change {
@@ -183,6 +184,9 @@ func (s *SchemaChanges) GetAllChanges() []*Change {
 	if s.XMLChanges != nil {
 		changes = append(changes, s.XMLChanges.GetAllChanges()...)
 	}
+	if s.ContentSchemaChanges != nil {
+		changes = append(changes, s.ContentSchemaChanges.GetAllChanges()...)
+	}
 	if s.ExtensionChanges != nil {
 		changes = append(changes, s.ExtensionChanges.GetAllChanges()...)
 	}
@@ -277,6 +281,9 @@ func (s *SchemaChanges) TotalChanges() int {
 	if s.XMLChanges != nil {
 		t += s.XMLChanges.TotalChanges()
 	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalChanges()
+	}
 	if s.ExtensionChanges != nil {
 		t += s.ExtensionChanges.TotalChanges()
 	}
@@ -367,6 +374,9 @@ func (s *SchemaChanges) TotalBreakingChanges() int {
 	}
 	if s.XMLChanges != nil {
 		t += s.XMLChanges.TotalBreakingChanges()
+	}
+	if s.ContentSchemaChanges != nil {
+		t += s.ContentSchemaChanges.TotalBreakingChanges()
 	}
 	if s.SchemaPropertyChanges != nil {
 		for n := range s.SchemaPropertyChanges {
@@ -1650,6 +1660,65 @@ func checkSchemaPropertyChanges(
 		Breaking:  BreakingModified(CompSchema, PropId),
 		Component: CompSchema,
 		Property:  PropId,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	// $comment (JSON Schema 2020-12)
+	if lSchema != nil && lSchema.Comment.ValueNode != nil {
+		lnv = lSchema.Comment.ValueNode
+	}
+	if rSchema != nil && rSchema.Comment.ValueNode != nil {
+		rnv = rSchema.Comment.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     v3.CommentLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropComment),
+		Component: CompSchema,
+		Property:  PropComment,
+		Original:  lSchema,
+		New:       rSchema,
+	})
+	lnv = nil
+	rnv = nil
+
+	// contentSchema (JSON Schema 2020-12)
+	if (lSchema != nil && lSchema.ContentSchema.Value != nil) && (rSchema != nil && rSchema.ContentSchema.Value != nil) {
+		if !low.AreEqual(lSchema.ContentSchema.Value, rSchema.ContentSchema.Value) {
+			sc.ContentSchemaChanges = CompareSchemas(lSchema.ContentSchema.Value, rSchema.ContentSchema.Value)
+		}
+	}
+	// added ContentSchema
+	if (lSchema == nil || lSchema.ContentSchema.Value == nil) && (rSchema != nil && rSchema.ContentSchema.Value != nil) {
+		CreateChange(changes, ObjectAdded, v3.ContentSchemaLabel,
+			nil, rSchema.ContentSchema.ValueNode, BreakingAdded(CompSchema, PropContentSchema), nil, rSchema.ContentSchema.Value)
+	}
+	// removed ContentSchema
+	if (lSchema != nil && lSchema.ContentSchema.Value != nil) && (rSchema == nil || rSchema.ContentSchema.Value == nil) {
+		CreateChange(changes, ObjectRemoved, v3.ContentSchemaLabel,
+			lSchema.ContentSchema.ValueNode, nil, BreakingRemoved(CompSchema, PropContentSchema), lSchema.ContentSchema.Value, nil)
+	}
+
+	// $vocabulary (JSON Schema 2020-12)
+	if lSchema != nil && lSchema.Vocabulary.ValueNode != nil {
+		lnv = lSchema.Vocabulary.ValueNode
+	}
+	if rSchema != nil && rSchema.Vocabulary.ValueNode != nil {
+		rnv = rSchema.Vocabulary.ValueNode
+	}
+	props = append(props, &PropertyCheck{
+		LeftNode:  lnv,
+		RightNode: rnv,
+		Label:     v3.VocabularyLabel,
+		Changes:   changes,
+		Breaking:  BreakingModified(CompSchema, PropVocabulary),
+		Component: CompSchema,
+		Property:  PropVocabulary,
 		Original:  lSchema,
 		New:       rSchema,
 	})
