@@ -447,6 +447,12 @@ exclusiveMaximum: 13
 contentEncoding: fish64
 contentMediaType: fish/paste
 items: true
+$comment: this is a comment
+contentSchema:
+  type: string
+$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://example.com/vocab": false
 examples:
   - testing
 const: tasty`
@@ -478,6 +484,25 @@ const: tasty`
 	assert.Equal(t, "testing", example0)
 	assert.Equal(t, "fish64", sch.ContentEncoding.Value)
 	assert.Equal(t, "fish/paste", sch.ContentMediaType.Value)
+	assert.Equal(t, "this is a comment", sch.Comment.Value)
+	assert.NotNil(t, sch.ContentSchema.Value)
+	assert.Equal(t, "string", sch.ContentSchema.Value.Schema().Type.Value.A)
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 2, sch.Vocabulary.Value.Len())
+	foundCore := false
+	foundExample := false
+	for key, value := range sch.Vocabulary.Value.FromOldest() {
+		if key.Value == "https://json-schema.org/draft/2020-12/vocab/core" {
+			assert.True(t, value.Value)
+			foundCore = true
+		}
+		if key.Value == "https://example.com/vocab" {
+			assert.False(t, value.Value)
+			foundExample = true
+		}
+	}
+	assert.True(t, foundCore)
+	assert.True(t, foundExample)
 	assert.True(t, sch.Items.Value.IsB())
 	assert.True(t, sch.Items.Value.B)
 

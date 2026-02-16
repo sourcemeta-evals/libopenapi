@@ -1891,6 +1891,31 @@ description: A pet schema`
 	assert.Equal(t, "A pet schema", highSch.Description)
 }
 
+func TestNewSchema_Comment_ContentSchema_Vocabulary(t *testing.T) {
+	yml := `type: object
+$comment: a comment
+contentSchema:
+  type: string
+$vocabulary:
+  "https://example.com/vocab": true`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "a comment", highSch.Comment)
+	assert.NotNil(t, highSch.ContentSchema)
+	assert.Equal(t, "string", highSch.ContentSchema.Schema().Type[0])
+	assert.NotNil(t, highSch.Vocabulary)
+	assert.Equal(t, 1, highSch.Vocabulary.Len())
+	assert.True(t, highSch.Vocabulary.GetOrZero("https://example.com/vocab"))
+}
+
 // TestNewSchema_Id_Empty tests that empty $id results in empty string
 func TestNewSchema_Id_Empty(t *testing.T) {
 	yml := `type: object
