@@ -43,6 +43,7 @@ const (
 // Property name constants for breaking change rule lookups.
 // These match the JSON keys used in the various *Rules structs.
 const (
+	PropAdditionalOperations = "additionalOperations"
 	PropAdditionalProperties = "additionalProperties"
 	PropAllOf                = "allOf"
 	PropAllowEmptyValue      = "allowEmptyValue"
@@ -87,6 +88,8 @@ const (
 	PropIf                   = "if"
 	PropImplicit             = "implicit"
 	PropIn                   = "in"
+	PropItemEncoding         = "itemEncoding"
+	PropItemSchema           = "itemSchema"
 	PropItems                = "items"
 	PropKind                 = "kind"
 	PropLicense              = "license"
@@ -105,6 +108,7 @@ const (
 	PropNodeType             = "nodeType"
 	PropNot                  = "not"
 	PropNullable             = "nullable"
+	PropOAuth2MetadataUrl    = "oauth2MetadataUrl"
 	PropOneOf                = "oneOf"
 	PropOpenIDConnectURL     = "openIdConnectUrl"
 	PropOperationID          = "operationId"
@@ -123,6 +127,7 @@ const (
 	PropPropertyName         = "propertyName"
 	PropPropertyNames        = "propertyNames"
 	PropPut                  = "put"
+	PropQuery                = "query"
 	PropReadOnly             = "readOnly"
 	PropRef                  = "$ref"
 	PropRefreshURL           = "refreshUrl"
