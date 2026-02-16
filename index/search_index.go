@@ -14,9 +14,9 @@ import (
 type ContextKey string
 
 const (
-	CurrentPathKey  ContextKey = "currentPath"
-	FoundIndexKey   ContextKey = "foundIndex"
-	RootIndexKey    ContextKey = "currentIndex"
+	CurrentPathKey   ContextKey = "currentPath"
+	FoundIndexKey    ContextKey = "foundIndex"
+	RootIndexKey     ContextKey = "currentIndex"
 	IndexingFilesKey ContextKey = "indexingFiles" // Tracks files being indexed in current call chain
 )
 
