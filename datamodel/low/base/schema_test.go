@@ -2753,3 +2753,142 @@ description: A schema without $id`
 
 	assert.True(t, sch.Id.IsEmpty())
 }
+
+func TestSchema_Comment(t *testing.T) {
+	yml := `type: object
+$comment: this is a comment
+description: a test schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "this is a comment", sch.Comment.Value)
+}
+
+func TestSchema_Comment_Empty(t *testing.T) {
+	yml := `type: object
+description: a test schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.True(t, sch.Comment.IsEmpty())
+}
+
+func TestSchema_Comment_Hash(t *testing.T) {
+	yml1 := `type: object
+$comment: comment A`
+
+	yml2 := `type: object
+$comment: comment B`
+
+	var n1, n2 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &n1)
+	_ = yaml.Unmarshal([]byte(yml2), &n2)
+
+	var sch1, sch2 Schema
+	_ = low.BuildModel(n1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), n1.Content[0], nil)
+	_ = low.BuildModel(n2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), n2.Content[0], nil)
+
+	assert.NotEqual(t, sch1.Hash(), sch2.Hash())
+}
+
+func TestSchema_ContentSchema(t *testing.T) {
+	yml := `type: string
+contentMediaType: application/json
+contentSchema:
+  type: object
+  properties:
+    name:
+      type: string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.ContentSchema.Value)
+}
+
+func TestSchema_ContentSchema_Hash(t *testing.T) {
+	yml1 := `type: string
+contentSchema:
+  type: object`
+
+	yml2 := `type: string
+contentSchema:
+  type: array`
+
+	var n1, n2 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &n1)
+	_ = yaml.Unmarshal([]byte(yml2), &n2)
+
+	var sch1, sch2 Schema
+	_ = low.BuildModel(n1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), n1.Content[0], nil)
+	_ = low.BuildModel(n2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), n2.Content[0], nil)
+
+	assert.NotEqual(t, sch1.Hash(), sch2.Hash())
+}
+
+func TestSchema_Vocabulary(t *testing.T) {
+	yml := `$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true
+  https://json-schema.org/draft/2020-12/vocab/applicator: true
+  https://json-schema.org/draft/2020-12/vocab/validation: false`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 3, sch.Vocabulary.Value.Len())
+}
+
+func TestSchema_Vocabulary_Hash(t *testing.T) {
+	yml1 := `$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true`
+
+	yml2 := `$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: false`
+
+	var n1, n2 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &n1)
+	_ = yaml.Unmarshal([]byte(yml2), &n2)
+
+	var sch1, sch2 Schema
+	_ = low.BuildModel(n1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), n1.Content[0], nil)
+	_ = low.BuildModel(n2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), n2.Content[0], nil)
+
+	assert.NotEqual(t, sch1.Hash(), sch2.Hash())
+}

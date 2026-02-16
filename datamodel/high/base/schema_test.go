@@ -1907,3 +1907,86 @@ description: A schema without $id`
 
 	assert.Equal(t, "", highSch.Id)
 }
+
+func TestNewSchema_Comment(t *testing.T) {
+	yml := `type: object
+$comment: this is a schema comment
+description: a test schema`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "this is a schema comment", highSch.Comment)
+}
+
+func TestNewSchema_Comment_Empty(t *testing.T) {
+	yml := `type: object
+description: no comment here`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.Equal(t, "", highSch.Comment)
+}
+
+func TestNewSchema_ContentSchema(t *testing.T) {
+	yml := `type: string
+contentMediaType: application/json
+contentSchema:
+  type: object
+  properties:
+    name:
+      type: string`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.NotNil(t, highSch.ContentSchema)
+	rendered := highSch.ContentSchema.Schema()
+	assert.Equal(t, "object", rendered.Type[0])
+}
+
+func TestNewSchema_Vocabulary(t *testing.T) {
+	yml := `$vocabulary:
+  https://json-schema.org/draft/2020-12/vocab/core: true
+  https://json-schema.org/draft/2020-12/vocab/applicator: true
+  https://json-schema.org/draft/2020-12/vocab/validation: false`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var lowSch lowbase.Schema
+	_ = low.BuildModel(idxNode.Content[0], &lowSch)
+	_ = lowSch.Build(context.Background(), idxNode.Content[0], nil)
+
+	highSch := NewSchema(&lowSch)
+
+	assert.NotNil(t, highSch.Vocabulary)
+	assert.Equal(t, 3, highSch.Vocabulary.Len())
+
+	coreVal, ok := highSch.Vocabulary.Get("https://json-schema.org/draft/2020-12/vocab/core")
+	assert.True(t, ok)
+	assert.True(t, coreVal)
+
+	valVal, ok := highSch.Vocabulary.Get("https://json-schema.org/draft/2020-12/vocab/validation")
+	assert.True(t, ok)
+	assert.False(t, valVal)
+}
