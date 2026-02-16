@@ -154,6 +154,11 @@ const (
 	PropVersion              = "version"
 	PropWrapped              = "wrapped"
 	PropWriteOnly            = "writeOnly"
+	PropQuery                = "query"
+	PropAdditionalOperations = "additionalOperations"
+	PropItemSchema           = "itemSchema"
+	PropItemEncoding         = "itemEncoding"
+	PropOAuth2MetadataUrl    = "oauth2MetadataUrl"
 )
 
 // ChangeType constants for IsBreaking lookup
