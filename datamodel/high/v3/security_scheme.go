@@ -21,18 +21,18 @@ import (
 // Recommended for most use case is Authorization Code Grant flow with PKCE.
 //   - https://spec.openapis.org/oas/v3.1.0#security-scheme-object
 type SecurityScheme struct {
-	Type             string                              `json:"type,omitempty" yaml:"type,omitempty"`
-	Description      string                              `json:"description,omitempty" yaml:"description,omitempty"`
-	Name             string                              `json:"name,omitempty" yaml:"name,omitempty"`
-	In               string                              `json:"in,omitempty" yaml:"in,omitempty"`
-	Scheme           string                              `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	BearerFormat     string                              `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
-	Flows            *OAuthFlows                         `json:"flows,omitempty" yaml:"flows,omitempty"`
-	OpenIdConnectUrl string                              `json:"openIdConnectUrl,omitempty" yaml:"openIdConnectUrl,omitempty"`
-	OAuth2MetadataUrl string                             `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"` // OpenAPI 3.2+ OAuth2 metadata URL
-	Deprecated       bool                                `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`               // OpenAPI 3.2+ deprecated flag
-	Extensions       *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
-	low              *low.SecurityScheme
+	Type              string                              `json:"type,omitempty" yaml:"type,omitempty"`
+	Description       string                              `json:"description,omitempty" yaml:"description,omitempty"`
+	Name              string                              `json:"name,omitempty" yaml:"name,omitempty"`
+	In                string                              `json:"in,omitempty" yaml:"in,omitempty"`
+	Scheme            string                              `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	BearerFormat      string                              `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
+	Flows             *OAuthFlows                         `json:"flows,omitempty" yaml:"flows,omitempty"`
+	OpenIdConnectUrl  string                              `json:"openIdConnectUrl,omitempty" yaml:"openIdConnectUrl,omitempty"`
+	OAuth2MetadataUrl string                              `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"` // OpenAPI 3.2+ OAuth2 metadata URL
+	Deprecated        bool                                `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`               // OpenAPI 3.2+ deprecated flag
+	Extensions        *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
+	low               *low.SecurityScheme
 }
 
 // NewSecurityScheme creates a new high-level SecurityScheme from a low-level one.
