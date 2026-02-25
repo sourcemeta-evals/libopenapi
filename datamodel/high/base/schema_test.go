@@ -1750,6 +1750,87 @@ components:
 	assert.Contains(t, output, "meow:")
 }
 
+func TestNewSchemaProxy_DynamicAnchorAndDynamicRef(t *testing.T) {
+	testSpec := `type: object
+description: schema with dynamic keywords
+$dynamicAnchor: myAnchor
+$dynamicRef: "#myAnchor"
+properties:
+  name:
+    type: string`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Equal(t, "myAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "#myAnchor", compiled.DynamicRef)
+
+	// Render and verify the output contains the dynamic keywords
+	schemaBytes, renderErr := compiled.Render()
+	assert.NoError(t, renderErr)
+	output := string(schemaBytes)
+	assert.Contains(t, output, "$dynamicAnchor: myAnchor")
+	assert.Contains(t, output, "$dynamicRef: ")
+}
+
+func TestNewSchemaProxy_DynamicAnchorOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: meta`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Equal(t, "meta", compiled.DynamicAnchor)
+	assert.Empty(t, compiled.DynamicRef)
+}
+
+func TestNewSchemaProxy_DynamicRefOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicRef: "#meta"`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.Empty(t, compiled.DynamicAnchor)
+	assert.Equal(t, "#meta", compiled.DynamicRef)
+}
+
 func TestSchema_MarshalYAMLInline_DiscriminatorWithNonRefSchemaProxy(t *testing.T) {
 	// Test that non-reference SchemaProxy entries are handled correctly
 	// (IsReference() returns false, so SetPreserveReference is not called)
