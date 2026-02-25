@@ -352,6 +352,40 @@ func Test_Schema(t *testing.T) {
 	assert.Equal(t, "anchor", sch.Anchor.Value)
 }
 
+func TestSchema_DynamicAnchorAndRef(t *testing.T) {
+	testSpec := `openapi: 3.1.0
+info:
+  title: Dynamic Test
+  version: "1.0"
+components:
+  schemas:
+    Meta:
+      type: string
+      $dynamicAnchor: meta
+    Container:
+      type: object
+      properties:
+        item:
+          $dynamicRef: '#meta'`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+	idx := index.NewSpecIndexWithConfig(&compNode, index.CreateOpenAPIIndexConfig())
+	_, componentsNode := utils.FindKeyNode("components", compNode.Content[0].Content)
+	_, schemasNode := utils.FindKeyNode("schemas", componentsNode.Content)
+	_, containerNode := utils.FindKeyNode("Container", schemasNode.Content)
+	_, propertiesNode := utils.FindKeyNode("properties", containerNode.Content)
+	_, itemNode := utils.FindKeyNode("item", propertiesNode.Content)
+	var item Schema
+	_ = item.Build(context.Background(), itemNode, idx)
+	assert.Equal(t, "#meta", item.DynamicRef.Value)
+
+	_, metaNode := utils.FindKeyNode("Meta", schemasNode.Content)
+	var meta Schema
+	_ = meta.Build(context.Background(), metaNode, idx)
+	assert.Equal(t, "meta", meta.DynamicAnchor.Value)
+}
+
 func TestSchemaAllOfSequenceOrder(t *testing.T) {
 	testSpec := test_get_allOf_schema_blob()
 

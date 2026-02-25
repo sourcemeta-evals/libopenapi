@@ -672,6 +672,38 @@ components:
 	}
 }
 
+func TestSpecIndex_ExtractRefs_DynamicRef_NamedAnchor(t *testing.T) {
+	yml := `openapi: 3.1.0
+info:
+  title: DynamicRef Test
+  version: "1.0"
+components:
+  schemas:
+    Container:
+      type: object
+      properties:
+        item:
+          $dynamicRef: '#meta'
+    Meta:
+      $dynamicAnchor: meta
+      type: string`
+
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+	c := CreateOpenAPIIndexConfig()
+	c.SpecAbsolutePath = "/tmp/dynamicref-test.yaml"
+	idx := NewSpecIndexWithConfig(&rootNode, c)
+
+	refs := idx.GetRawReferencesSequenced()
+	assert.Len(t, refs, 1)
+	assert.Equal(t, "#meta", refs[0].Definition)
+	assert.Equal(t, "/tmp/dynamicref-test.yaml#meta", refs[0].FullDefinition)
+
+	mapped, ok := idx.GetAllReferences()["/tmp/dynamicref-test.yaml#meta"]
+	assert.True(t, ok)
+	assert.Equal(t, "#meta", mapped.Definition)
+}
+
 func TestSpecIndex_ExtractRefs_LowCPUConcurrencyFloor(t *testing.T) {
 	// Set GOMAXPROCS to 2 (less than 4) to trigger the concurrency floor
 	oldMaxProcs := runtime.GOMAXPROCS(2)

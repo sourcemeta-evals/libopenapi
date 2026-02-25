@@ -323,6 +323,42 @@ $schema: https://example.com/custom-json-schema-dialect`
 	assert.Len(t, schemaBytes, 3473)
 }
 
+func TestNewSchemaProxy_WithDynamicAnchorAndRef(t *testing.T) {
+	testSpec := `openapi: 3.1.0
+info:
+  title: Dynamic Test
+  version: "1.0"
+components:
+  schemas:
+    Meta:
+      type: string
+      $dynamicAnchor: meta
+    Container:
+      type: object
+      properties:
+        item:
+          $dynamicRef: '#meta'`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+	idx := index.NewSpecIndexWithConfig(&compNode, index.CreateOpenAPIIndexConfig())
+	_, componentsNode := utils.FindKeyNode("components", compNode.Content[0].Content)
+	_, schemasNode := utils.FindKeyNode("schemas", componentsNode.Content)
+	_, containerNode := utils.FindKeyNode("Container", schemasNode.Content)
+	_, propertiesNode := utils.FindKeyNode("properties", containerNode.Content)
+	_, itemNode := utils.FindKeyNode("item", propertiesNode.Content)
+	var lowItem lowbase.Schema
+	_ = lowItem.Build(context.Background(), itemNode, idx)
+	compiled := NewSchema(&lowItem)
+	assert.Equal(t, "#meta", compiled.DynamicRef)
+
+	_, metaNode := utils.FindKeyNode("Meta", schemasNode.Content)
+	var lowMeta lowbase.Schema
+	_ = lowMeta.Build(context.Background(), metaNode, idx)
+	metaCompiled := NewSchema(&lowMeta)
+	assert.Equal(t, "meta", metaCompiled.DynamicAnchor)
+}
+
 func TestSchemaObjectWithAllOfSequenceOrder(t *testing.T) {
 	testSpec := test_get_allOf_schema_blob()
 

@@ -94,6 +94,34 @@ components:
 	assert.Equal(t, "Pet", ref.Name)
 }
 
+func TestSpecIndex_SearchIndexForReference_NamedAnchor(t *testing.T) {
+	spec := `openapi: 3.1.0
+info:
+  title: Anchor Test
+  version: "1.0"
+components:
+  schemas:
+    Generic:
+      type: object
+      $dynamicAnchor: meta
+      properties:
+        value:
+          type: string`
+
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(spec), &rootNode)
+
+	c := CreateOpenAPIIndexConfig()
+	c.SpecAbsolutePath = "/tmp/anchor-test.yaml"
+	idx := NewSpecIndexWithConfig(&rootNode, c)
+
+	ref, foundIdx := idx.SearchIndexForReference("#meta")
+	assert.NotNil(t, ref)
+	assert.NotNil(t, foundIdx)
+	assert.Equal(t, "#meta", ref.Definition)
+	assert.Equal(t, "/tmp/anchor-test.yaml#meta", ref.FullDefinition)
+}
+
 func TestSearchIndexForReference_RolodexSuffixMatch(t *testing.T) {
 	tempDir := t.TempDir()
 	externalDir := filepath.Join(tempDir, "subdir")

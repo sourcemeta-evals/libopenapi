@@ -108,6 +108,8 @@ type Schema struct {
 	UnevaluatedItems      low.NodeReference[*SchemaProxy]
 	UnevaluatedProperties low.NodeReference[*SchemaDynamicValue[*SchemaProxy, bool]]
 	Anchor                low.NodeReference[string]
+	DynamicAnchor         low.NodeReference[string]
+	DynamicRef            low.NodeReference[string]
 
 	// Compatible with all versions
 	Title                low.NodeReference[string]
@@ -491,6 +493,14 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteString(s.Anchor.Value)
 		sb.WriteByte('|')
 	}
+	if !s.DynamicAnchor.IsEmpty() {
+		sb.WriteString(s.DynamicAnchor.Value)
+		sb.WriteByte('|')
+	}
+	if !s.DynamicRef.IsEmpty() {
+		sb.WriteString(s.DynamicRef.Value)
+		sb.WriteByte('|')
+	}
 
 	// Process dependent schemas and pattern properties
 	for _, hash := range low.AppendMapHashes(nil, orderedmap.SortAlpha(s.DependentSchemas.Value)) {
@@ -659,7 +669,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	}
 
 	if !isTransformed {
-		if h, _, _ := utils.IsNodeRefValue(root); h {
+		if h, refLabel, _ := utils.IsNodeRefValue(root); h && refLabel != nil && refLabel.Value == "$ref" {
 			ref, _, err, fctx := low.LocateRefNodeWithContext(ctx, root, idx)
 			if ref != nil {
 				root = ref
@@ -825,6 +835,18 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	if anchorNode != nil {
 		s.Anchor = low.NodeReference[string]{
 			Value: anchorNode.Value, KeyNode: anchorLabel, ValueNode: anchorNode,
+		}
+	}
+	_, dynamicAnchorLabel, dynamicAnchorNode := utils.FindKeyNodeFullTop(DynamicAnchorLabel, root.Content)
+	if dynamicAnchorNode != nil {
+		s.DynamicAnchor = low.NodeReference[string]{
+			Value: dynamicAnchorNode.Value, KeyNode: dynamicAnchorLabel, ValueNode: dynamicAnchorNode,
+		}
+	}
+	_, dynamicRefLabel, dynamicRefNode := utils.FindKeyNodeFullTop(DynamicRefLabel, root.Content)
+	if dynamicRefNode != nil {
+		s.DynamicRef = low.NodeReference[string]{
+			Value: dynamicRefNode.Value, KeyNode: dynamicRefLabel, ValueNode: dynamicRefNode,
 		}
 	}
 
@@ -1279,7 +1301,7 @@ func buildPropertyMap(ctx context.Context, parent *Schema, root *yaml.Node, idx 
 			// check our prop isn't reference
 			refString := ""
 			var refNode *yaml.Node
-			if h, _, l := utils.IsNodeRefValue(prop); h {
+			if h, refLabel, l := utils.IsNodeRefValue(prop); h && refLabel != nil && refLabel.Value == "$ref" {
 				ref, fIdx, _, fctx := low.LocateRefNodeWithContext(foundCtx, prop, foundIdx)
 				if ref != nil {
 
@@ -1428,8 +1450,8 @@ func buildSchema(ctx context.Context, schemas chan schemaProxyBuildResult, label
 		foundCtx := ctx
 		foundIdx := idx
 		if utils.IsNodeMap(valueNode) {
-			h := false
-			if h, _, refLocation = utils.IsNodeRefValue(valueNode); h {
+			if h, refLabel, refLoc := utils.IsNodeRefValue(valueNode); h && refLabel != nil && refLabel.Value == "$ref" {
+				refLocation = refLoc
 				isRef = true
 				ref, fIdx, _, fctx := low.LocateRefNodeWithContext(foundCtx, valueNode, foundIdx)
 				if ref != nil {
@@ -1459,10 +1481,10 @@ func buildSchema(ctx context.Context, schemas chan schemaProxyBuildResult, label
 
 			for i, vn := range valueNode.Content {
 				isRef = false
-				h := false
 				foundIdx = idx
 				foundCtx = ctx
-				if h, _, refLocation = utils.IsNodeRefValue(vn); h {
+				if h, refLabel, refLoc := utils.IsNodeRefValue(vn); h && refLabel != nil && refLabel.Value == "$ref" {
+					refLocation = refLoc
 					isRef = true
 					ref, fIdx, _, fctx := low.LocateRefNodeWithContext(foundCtx, vn, foundIdx)
 					if ref != nil {
@@ -1510,7 +1532,7 @@ func ExtractSchema(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) (
 
 	foundIndex := idx
 	foundCtx := ctx
-	if rf, rl, _ := utils.IsNodeRefValue(root); rf {
+	if rf, rl, _ := utils.IsNodeRefValue(root); rf && rl != nil && rl.Value == "$ref" {
 		// locate reference in index.
 		ref, fIdx, _, nCtx := low.LocateRefNodeWithContext(ctx, root, idx)
 		if ref != nil {
@@ -1529,8 +1551,8 @@ func ExtractSchema(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) (
 	} else {
 		_, schLabel, schNode = utils.FindKeyNodeFull(SchemaLabel, root.Content)
 		if schNode != nil {
-			h := false
-			if h, _, refLocation = utils.IsNodeRefValue(schNode); h {
+			if h, refLabel, refLoc := utils.IsNodeRefValue(schNode); h && refLabel != nil && refLabel.Value == "$ref" {
+				refLocation = refLoc
 				ref, fIdx, _, nCtx := low.LocateRefNodeWithContext(foundCtx, schNode, foundIndex)
 				if ref != nil {
 					refNode = schNode

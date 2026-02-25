@@ -891,6 +891,25 @@ func TestIsNodeRefValue(t *testing.T) {
 	assert.Equal(t, "'#/somewhere/out-there'", val)
 }
 
+func TestIsNodeRefValue_DynamicRef(t *testing.T) {
+	f := &yaml.Node{
+		Value: "$dynamicRef",
+	}
+	g := &yaml.Node{
+		Value: "'#meta'",
+	}
+	h := &yaml.Node{
+		Tag:     "!!map",
+		Content: []*yaml.Node{f, g},
+	}
+
+	ref, node, val := IsNodeRefValue(h)
+
+	assert.True(t, ref)
+	assert.Equal(t, "$dynamicRef", node.Value)
+	assert.Equal(t, "'#meta'", val)
+}
+
 func TestIsNodeAlias(t *testing.T) {
 	yml := `things:
   &anchorA

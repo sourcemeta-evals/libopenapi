@@ -91,7 +91,7 @@ func (sp *SchemaProxy) Build(ctx context.Context, key, value *yaml.Node, idx *in
 	// handle reference detection
 	if !wasTransformed {
 		// for non-transformed schemas, handle reference normally
-		if rf, _, r := utils.IsNodeRefValue(transformedValue); rf {
+		if rf, refLabel, r := utils.IsNodeRefValue(transformedValue); rf && refLabel != nil && refLabel.Value == "$ref" {
 			sp.SetReference(r, transformedValue)
 		}
 	}

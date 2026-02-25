@@ -9,14 +9,16 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+
+	"go.yaml.in/yaml/v4"
 )
 
 type ContextKey string
 
 const (
-	CurrentPathKey  ContextKey = "currentPath"
-	FoundIndexKey   ContextKey = "foundIndex"
-	RootIndexKey    ContextKey = "currentIndex"
+	CurrentPathKey   ContextKey = "currentPath"
+	FoundIndexKey    ContextKey = "foundIndex"
+	RootIndexKey     ContextKey = "currentIndex"
 	IndexingFilesKey ContextKey = "indexingFiles" // Tracks files being indexed in current call chain
 )
 
@@ -105,6 +107,15 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 	ref := searchRef.FullDefinition
 	refAlt := ref
 	absPath := index.specAbsolutePath
+	anchorParts := strings.SplitN(searchRef.FullDefinition, "#", 2)
+	anchorPath := ""
+	anchorName := ""
+	if len(anchorParts) == 2 {
+		anchorPath = anchorParts[0]
+		if anchorParts[1] != "" && !strings.HasPrefix(anchorParts[1], "/") {
+			anchorName = anchorParts[1]
+		}
+	}
 	if searchRef.RemoteLocation != "" {
 		absPath = searchRef.RemoteLocation
 	}
@@ -186,6 +197,17 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 			idx := index.extractIndex(rf)
 			index.cache.Store(refAlt, r)
 			return rf, idx, context.WithValue(ctx, CurrentPathKey, rf.RemoteLocation)
+		}
+	}
+
+	if anchorName != "" {
+		isLocalAnchorRef := anchorPath == "" || anchorPath == absPath || anchorPath == index.specAbsolutePath
+		if isLocalAnchorRef {
+			if r := index.findNamedAnchorReference(anchorName); r != nil {
+				idx := index.extractIndex(r)
+				index.cache.Store(searchRef.FullDefinition, r)
+				return r, idx, context.WithValue(ctx, CurrentPathKey, r.RemoteLocation)
+			}
 		}
 	}
 
@@ -293,6 +315,9 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 						compId = fmt.Sprintf("#/%s", exp[1])
 						found = FindComponent(ctx, node, compId, exp[0], idx)
 					}
+					if found == nil && anchorName != "" {
+						found = idx.findNamedAnchorReference(anchorName)
+					}
 					if found == nil {
 						found = idx.FindComponent(ctx, ref)
 					}
@@ -311,6 +336,11 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 		// this is a last ditch effort. if this fails, all hope is lost.
 		if index.GetRolodex() != nil {
 			for _, i := range index.GetRolodex().GetIndexes() {
+				if anchorName != "" {
+					if v := i.findNamedAnchorReference(anchorName); v != nil {
+						return v, v.Index, ctx
+					}
+				}
 				v := i.FindComponent(ctx, ref)
 				if v != nil {
 					return v, v.Index, ctx
@@ -320,6 +350,49 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 		index.logger.Error("unable to locate reference anywhere in the rolodex", "reference", ref)
 	}
 	return nil, index, ctx
+}
+
+func (index *SpecIndex) findNamedAnchorReference(anchorName string) *Reference {
+	if anchorName == "" || index.root == nil || len(index.root.Content) == 0 {
+		return nil
+	}
+	fullDefBase := index.GetSpecAbsolutePath()
+	return index.findNamedAnchorReferenceInNode(index.root.Content[0], index.root, anchorName, fullDefBase)
+}
+
+func (index *SpecIndex) findNamedAnchorReferenceInNode(node, parent *yaml.Node, anchorName, fullDefBase string) *Reference {
+	if node == nil {
+		return nil
+	}
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			k := node.Content[i]
+			v := node.Content[i+1]
+			if (k.Value == "$dynamicAnchor" || k.Value == "$anchor") && v.Value == anchorName {
+				fullDef := fmt.Sprintf("#%s", anchorName)
+				if fullDefBase != "" {
+					fullDef = fmt.Sprintf("%s#%s", fullDefBase, anchorName)
+				}
+				return &Reference{
+					FullDefinition: fullDef,
+					Definition:     fmt.Sprintf("#%s", anchorName),
+					Name:           anchorName,
+					Node:           node,
+					KeyNode:        k,
+					ParentNode:     parent,
+					Index:          index,
+					RemoteLocation: fullDefBase,
+					Path:           fullDef,
+				}
+			}
+		}
+	}
+	for _, child := range node.Content {
+		if found := index.findNamedAnchorReferenceInNode(child, node, anchorName, fullDefBase); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func (index *SpecIndex) extractIndex(r *Reference) *SpecIndex {
