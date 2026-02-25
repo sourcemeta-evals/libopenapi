@@ -77,6 +77,8 @@ const (
 	PropDelete               = "delete"
 	PropDeprecated           = "deprecated"
 	PropDependentRequired    = "dependentRequired"
+	PropDynamicAnchor        = "$dynamicAnchor"
+	PropDynamicRef           = "$dynamicRef"
 	PropDescription          = "description"
 	PropDevice               = "device"
 	PropDiscriminator        = "discriminator"
