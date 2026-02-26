@@ -378,17 +378,17 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 					}
 
 					ref := &Reference{
-						ParentNode:        parent,
-						FullDefinition:    fullDefinitionPath,
-						Definition:        componentName,
-						Name:              name,
-						Node:              node,
-						KeyNode:           node.Content[i+1],
-						Path:              p,
-						Index:             index,
+						ParentNode:           parent,
+						FullDefinition:       fullDefinitionPath,
+						Definition:           componentName,
+						Name:                 name,
+						Node:                 node,
+						KeyNode:              node.Content[i+1],
+						Path:                 p,
+						Index:                index,
 						HasSiblingProperties: len(siblingProps) > 0,
-						SiblingProperties: siblingProps,
-						SiblingKeys:       siblingKeys,
+						SiblingProperties:    siblingProps,
+						SiblingKeys:          siblingKeys,
 					}
 
 					// add to raw sequenced refs
@@ -422,17 +422,17 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 						}
 
 						copied := Reference{
-							ParentNode:        parent,
-							FullDefinition:    fullDefinitionPath,
-							Definition:        ref.Definition,
-							Name:              ref.Name,
-							Node:              &copiedNode,
-							KeyNode:           node.Content[i],
-							Path:              p,
-							Index:             index,
+							ParentNode:           parent,
+							FullDefinition:       fullDefinitionPath,
+							Definition:           ref.Definition,
+							Name:                 ref.Name,
+							Node:                 &copiedNode,
+							KeyNode:              node.Content[i],
+							Path:                 p,
+							Index:                index,
 							HasSiblingProperties: len(siblingProps) > 0,
-							SiblingProperties: siblingProps,
-							SiblingKeys:       siblingKeys,
+							SiblingProperties:    siblingProps,
+							SiblingKeys:          siblingKeys,
 						}
 						// protect this data using a copy, prevent the resolver from destroying things.
 						index.refsWithSiblings[value] = copied

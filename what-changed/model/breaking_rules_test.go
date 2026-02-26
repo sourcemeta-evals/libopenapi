@@ -640,10 +640,8 @@ func BenchmarkMerge(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		config := GenerateDefaultBreakingRules()
-		// create a copy since we can't mutate the singleton
-		configCopy := *config
-		configCopy.Merge(override)
+		config := buildDefaultRules() // avoid copying sync.Once (go vet)
+		config.Merge(override)
 	}
 }
 
