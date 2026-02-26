@@ -140,7 +140,6 @@ paths: {}`), &rootNode)
 	assert.Equal(t, "external.yaml", filepath.Base(found.FullDefinition))
 }
 
-
 func TestIsFileBeingIndexed_HTTPPathMatch(t *testing.T) {
 	// Test that HTTP paths match when the path portion is the same
 	ctx := context.Background()
@@ -159,4 +158,3 @@ func TestIsFileBeingIndexed_HTTPPathMatch(t *testing.T) {
 	// Different path - should not match
 	assert.False(t, IsFileBeingIndexed(ctx, "https://example.com/other/file.yaml"))
 }
-
