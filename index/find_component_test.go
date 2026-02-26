@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pb33f/libopenapi/utils"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v4"
 )
@@ -207,6 +208,34 @@ func TestSpecIndex_FailFindComponentInRoot(t *testing.T) {
 	assert.Nil(t, index.FindComponentInRoot(context.Background(), "does it even matter? of course not. no"))
 }
 
+func TestSpecIndex_FindComponentInRoot_Anchors(t *testing.T) {
+	yml := `openapi: 3.1.0
+$anchor: rootAnchor
+components:
+  schemas:
+    Thing:
+      $anchor: thing
+      type: string
+    Dyn:
+      $dynamicAnchor: dyn
+      type: integer`
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+
+	cfg := CreateClosedAPIIndexConfig()
+	idx := NewSpecIndexWithConfig(&rootNode, cfg)
+
+	thing := idx.FindComponentInRoot(context.Background(), "#thing")
+	assert.NotNil(t, thing)
+	_, thingType := utils.FindKeyNodeTop("type", thing.Node.Content)
+	assert.Equal(t, "string", thingType.Value)
+
+	dyn, _ := idx.SearchIndexForReference("#dyn")
+	assert.NotNil(t, dyn)
+	_, dynType := utils.FindKeyNodeTop("type", dyn.Node.Content)
+	assert.Equal(t, "integer", dynType.Value)
+}
+
 func TestSpecIndex_LocateRemoteDocsWithRemoteURLHandler(t *testing.T) {
 	// This test will push the index to do try and locate remote references that use relative references
 	spec := `openapi: 3.0.2
@@ -239,7 +268,8 @@ paths:
 	// add remote filesystem
 	rolo.AddRemoteFS("", remoteFS)
 
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+	defer cancel()
 	var idx *SpecIndex
 	done := make(chan struct{})
 	go func() {

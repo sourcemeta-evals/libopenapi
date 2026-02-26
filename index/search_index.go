@@ -14,9 +14,9 @@ import (
 type ContextKey string
 
 const (
-	CurrentPathKey  ContextKey = "currentPath"
-	FoundIndexKey   ContextKey = "foundIndex"
-	RootIndexKey    ContextKey = "currentIndex"
+	CurrentPathKey   ContextKey = "currentPath"
+	FoundIndexKey    ContextKey = "foundIndex"
+	RootIndexKey     ContextKey = "currentIndex"
 	IndexingFilesKey ContextKey = "indexingFiles" // Tracks files being indexed in current call chain
 )
 
@@ -189,6 +189,14 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 		}
 	}
 
+	if strings.Contains(searchRef.FullDefinition, "#") && !strings.Contains(searchRef.FullDefinition, "#/") {
+		if found := index.FindComponent(ctx, searchRef.FullDefinition); found != nil {
+			idx := index.extractIndex(found)
+			index.cache.Store(searchRef.FullDefinition, found)
+			return found, idx, context.WithValue(ctx, CurrentPathKey, found.RemoteLocation)
+		}
+	}
+
 	// check the rolodex for the reference.
 	if roloLookup != "" {
 
@@ -295,6 +303,9 @@ func (index *SpecIndex) SearchIndexForReferenceByReferenceWithContext(ctx contex
 					}
 					if found == nil {
 						found = idx.FindComponent(ctx, ref)
+					}
+					if found == nil && strings.Contains(searchRef.FullDefinition, "#") && !strings.Contains(searchRef.FullDefinition, "#/") {
+						found = idx.FindComponent(ctx, searchRef.FullDefinition)
 					}
 
 					if found != nil {

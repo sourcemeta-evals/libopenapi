@@ -516,7 +516,7 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 
 			}
 
-			if i%2 == 0 && n.Value == "$ref" && len(node.Content) > i%2+1 {
+			if i%2 == 0 && isReferenceKeyword(n.Value) && len(node.Content) > i%2+1 {
 
 				if !utils.IsNodeStringValue(node.Content[i+1]) {
 					continue
@@ -616,6 +616,18 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 				}
 
 				locatedRef, _ = resolver.specIndex.SearchIndexForReferenceByReference(searchRef)
+				if n.Value == "$dynamicRef" && isPlainNameFragment(value) {
+					anchorName := strings.TrimPrefix(value, "#")
+					for j := len(journey) - 1; j >= 0; j-- {
+						if journey[j] == nil || nodeDynamicAnchorValue(journey[j].Node) != anchorName {
+							continue
+						}
+						if override := findAnchorInNode(journey[j].Node, anchorName, journey[j].RemoteLocation, journey[j].Index, true); override != nil {
+							locatedRef = override
+							break
+						}
+					}
+				}
 
 				if locatedRef == nil {
 					_, path := utils.ConvertComponentIdIntoFriendlyPathSearch(value)
@@ -823,6 +835,51 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 
 func (resolver *Resolver) buildDefPath(ref *Reference, l string) string {
 	def := ""
+	if isPlainNameFragment(l) {
+		anchor := strings.TrimPrefix(l, "#")
+		if strings.HasPrefix(ref.FullDefinition, "http") {
+			u, _ := url.Parse(ref.FullDefinition)
+			u.Fragment = ""
+			return fmt.Sprintf("%s#%s", u.String(), anchor)
+		}
+		if strings.HasPrefix(ref.FullDefinition, "#") {
+			return fmt.Sprintf("#%s", anchor)
+		}
+		fdexp := strings.Split(ref.FullDefinition, "#/")
+		if len(fdexp) > 0 {
+			return fmt.Sprintf("%s#%s", fdexp[0], anchor)
+		}
+		return fmt.Sprintf("%s#%s", ref.FullDefinition, anchor)
+	}
+	if strings.Contains(l, "#") && !strings.Contains(l, "#/") {
+		parts := strings.SplitN(l, "#", 2)
+		if len(parts) == 2 {
+			anchor := parts[1]
+			if parts[0] == "" {
+				return resolver.buildDefPath(ref, fmt.Sprintf("#%s", anchor))
+			}
+			if strings.HasPrefix(parts[0], "http") {
+				return fmt.Sprintf("%s#%s", parts[0], anchor)
+			}
+			if filepath.IsAbs(parts[0]) {
+				return fmt.Sprintf("%s#%s", parts[0], anchor)
+			}
+			if strings.HasPrefix(ref.FullDefinition, "http") {
+				u, _ := url.Parse(ref.FullDefinition)
+				p, _ := filepath.Abs(utils.CheckPathOverlap(path.Dir(u.Path), parts[0], string(filepath.Separator)))
+				u.Path = utils.ReplaceWindowsDriveWithLinuxPath(p)
+				u.Fragment = ""
+				return fmt.Sprintf("%s#%s", u.String(), anchor)
+			}
+			lookupRef := strings.Split(ref.FullDefinition, "#/")
+			base := ref.FullDefinition
+			if len(lookupRef) > 0 {
+				base = lookupRef[0]
+			}
+			abs, _ := filepath.Abs(utils.CheckPathOverlap(filepath.Dir(base), parts[0], string(filepath.Separator)))
+			return fmt.Sprintf("%s#%s", abs, anchor)
+		}
+	}
 	exp := strings.Split(l, "#/")
 	if len(exp) == 2 {
 		if exp[0] != "" {

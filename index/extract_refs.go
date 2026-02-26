@@ -217,7 +217,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value == "$ref" {
+			if i%2 == 0 && isReferenceKeyword(n.Value) {
 
 				// Check if this reference is under an extension path (x-* field).
 				// Always compute this so we can mark refs with IsExtensionRef.
@@ -273,7 +273,19 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 
 					var componentName string
 					var fullDefinitionPath string
-					if len(uri) == 2 {
+					if strings.Contains(value, "#") && !strings.Contains(value, "#/") {
+						parts := strings.SplitN(value, "#", 2)
+						componentName = fmt.Sprintf("#%s", parts[1])
+						fullDefinitionPath = value
+						if parts[0] == "" {
+							fullDefinitionPath = fmt.Sprintf("%s#%s", index.specAbsolutePath, parts[1])
+						} else if strings.HasPrefix(parts[0], "http") || filepath.IsAbs(parts[0]) {
+							fullDefinitionPath = value
+						} else if !strings.HasPrefix(defRoot, "http") {
+							abs, _ := filepath.Abs(utils.CheckPathOverlap(defRoot, parts[0], string(os.PathSeparator)))
+							fullDefinitionPath = fmt.Sprintf("%s#%s", abs, parts[1])
+						}
+					} else if len(uri) == 2 {
 						// Check if we are dealing with a ref to a local definition.
 						if uri[0] == "" {
 							fullDefinitionPath = fmt.Sprintf("%s#/%s", index.specAbsolutePath, uri[1])
@@ -379,7 +391,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 
 					if hasSiblings {
 						for j := 0; j < len(node.Content); j += 2 {
-							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" {
+							if j+1 < len(node.Content) && !isReferenceKeyword(node.Content[j].Value) {
 								siblingProps[node.Content[j].Value] = node.Content[j+1]
 								siblingKeys = append(siblingKeys, node.Content[j])
 							}
@@ -425,7 +437,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 						var siblingKeys []*yaml.Node
 
 						for j := 0; j < len(node.Content); j += 2 {
-							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" {
+							if j+1 < len(node.Content) && !isReferenceKeyword(node.Content[j].Value) {
 								siblingProps[node.Content[j].Value] = node.Content[j+1]
 								siblingKeys = append(siblingKeys, node.Content[j])
 							}
@@ -498,7 +510,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value != "$ref" && n.Value != "" {
+			if i%2 == 0 && !isReferenceKeyword(n.Value) && n.Value != "" {
 
 				v := n.Value
 				if strings.HasPrefix(v, "/") {

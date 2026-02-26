@@ -18,12 +18,112 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+func isReferenceKeyword(name string) bool {
+	return name == "$ref" || name == "$dynamicRef"
+}
+
+func isPlainNameFragment(ref string) bool {
+	return strings.HasPrefix(ref, "#") && !strings.HasPrefix(ref, "#/") && len(ref) > 1
+}
+
+func findAnchorInNode(root *yaml.Node, anchorName, absoluteFilePath string, index *SpecIndex, dynamicOnly bool) *Reference {
+	var walk func(node, parent *yaml.Node, path []string) *Reference
+	walk = func(node, parent *yaml.Node, path []string) *Reference {
+		if node == nil {
+			return nil
+		}
+		n := utils.NodeAlias(node)
+		if n.Kind == yaml.MappingNode {
+			var anchor, dynamicAnchor string
+			for i := 0; i+1 < len(n.Content); i += 2 {
+				k := n.Content[i]
+				v := n.Content[i+1]
+				switch k.Value {
+				case "$anchor":
+					anchor = v.Value
+				case "$dynamicAnchor":
+					dynamicAnchor = v.Value
+				}
+			}
+			if (dynamicOnly && dynamicAnchor == anchorName) || (!dynamicOnly && (anchor == anchorName || dynamicAnchor == anchorName)) {
+				jsonPtr := "#"
+				if len(path) > 0 {
+					jsonPtr = "#/" + strings.Join(path, "/")
+				}
+				_, jsonPath := utils.ConvertComponentIdIntoFriendlyPathSearch(jsonPtr)
+				return &Reference{
+					FullDefinition:        fmt.Sprintf("%s#%s", absoluteFilePath, anchorName),
+					Definition:            fmt.Sprintf("#%s", anchorName),
+					Name:                  anchorName,
+					Node:                  n,
+					Path:                  jsonPath,
+					RemoteLocation:        absoluteFilePath,
+					ParentNode:            parent,
+					Index:                 index,
+					RequiredRefProperties: extractDefinitionRequiredRefProperties(n, map[string][]string{}, fmt.Sprintf("%s#%s", absoluteFilePath, anchorName), index),
+				}
+			}
+			for i := 0; i+1 < len(n.Content); i += 2 {
+				k := n.Content[i]
+				v := n.Content[i+1]
+				nextPath := append(append([]string{}, path...), strings.ReplaceAll(k.Value, "/", "~1"))
+				if r := walk(v, n, nextPath); r != nil {
+					return r
+				}
+			}
+			return nil
+		}
+		if n.Kind == yaml.SequenceNode {
+			for i, c := range n.Content {
+				nextPath := append(append([]string{}, path...), fmt.Sprintf("%d", i))
+				if r := walk(c, n, nextPath); r != nil {
+					return r
+				}
+			}
+		}
+		return nil
+	}
+
+	if root != nil && root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	return walk(root, nil, nil)
+}
+
+func nodeDynamicAnchorValue(node *yaml.Node) string {
+	if node == nil {
+		return ""
+	}
+	n := utils.NodeAlias(node)
+	if !utils.IsNodeMap(n) {
+		return ""
+	}
+	_, v := utils.FindKeyNodeTop("$dynamicAnchor", n.Content)
+	if v != nil {
+		return v.Value
+	}
+	return ""
+}
+
 // FindComponent will locate a component by its reference, returns nil if nothing is found.
 // This method will recurse through remote, local and file references. For each new external reference
 // a new index will be created. These indexes can then be traversed recursively.
 func (index *SpecIndex) FindComponent(ctx context.Context, componentId string) *Reference {
 	if index.root == nil {
 		return nil
+	}
+
+	if isPlainNameFragment(componentId) {
+		return index.FindComponentInRoot(ctx, componentId)
+	}
+	if strings.Contains(componentId, "#") && !strings.Contains(componentId, "#/") {
+		parts := strings.SplitN(componentId, "#", 2)
+		if len(parts) == 2 {
+			if parts[0] == "" {
+				return index.FindComponentInRoot(ctx, componentId)
+			}
+			return index.lookupRolodex(ctx, parts)
+		}
 	}
 
 	uri := strings.Split(componentId, "#/")
@@ -73,6 +173,10 @@ func FindComponent(_ context.Context, root *yaml.Node, componentId, absoluteFile
 	if strings.Contains(componentId, "%") {
 		// decode the url.
 		componentId, _ = url.QueryUnescape(componentId)
+	}
+
+	if isPlainNameFragment(componentId) {
+		return findAnchorInNode(root, strings.TrimPrefix(componentId, "#"), absoluteFilePath, index, false)
 	}
 
 	name, friendlySearch := utils.ConvertComponentIdIntoFriendlyPathSearch(componentId)
@@ -206,7 +310,11 @@ func (index *SpecIndex) lookupRolodex(ctx context.Context, uri []string) *Refere
 		if len(uri) < 2 {
 			wholeFile = true
 		} else {
-			query = fmt.Sprintf("#/%s", uri[1])
+			if strings.HasPrefix(uri[1], "/") {
+				query = fmt.Sprintf("#%s", uri[1])
+			} else {
+				query = fmt.Sprintf("#/%s", uri[1])
+			}
 		}
 
 		// check if there is a component we want to suck in, or if the

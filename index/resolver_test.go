@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pb33f/jsonpath/pkg/jsonpath"
@@ -995,6 +996,69 @@ components:
 	assert.Len(t, circ, 0)
 	assert.Len(t, resolver.GetInfiniteCircularReferences(), 0)
 	assert.Len(t, resolver.GetSafeCircularReferences(), 1)
+}
+
+func TestResolver_DynamicRef_UsesDynamicScope(t *testing.T) {
+	yml := []byte(`openapi: 3.1.0
+$dynamicAnchor: item
+type: integer
+paths:
+  /example:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A'
+components:
+  schemas:
+    A:
+      $dynamicAnchor: item
+      type: string
+      properties:
+        bridge:
+          $ref: '#/components/schemas/B'
+    B:
+      type: object
+      properties:
+        value:
+          $dynamicRef: '#item'`)
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal(yml, &rootNode)
+
+	idx := NewSpecIndexWithConfig(&rootNode, CreateClosedAPIIndexConfig())
+	resolver := NewResolver(idx)
+	aRef, _ := idx.SearchIndexForReference("#/components/schemas/A")
+	bRef, _ := idx.SearchIndexForReference("#/components/schemas/B")
+	assert.NotNil(t, aRef)
+	assert.NotNil(t, bRef)
+
+	found := resolver.extractRelatives(bRef, bRef.Node, nil, map[string]bool{}, []*Reference{aRef, bRef}, map[int]bool{}, false, 0)
+	var target *Reference
+	for _, f := range found {
+		if f != nil && (f.Definition == "#item" || strings.HasSuffix(f.FullDefinition, "#item")) {
+			target = f
+			break
+		}
+	}
+	if target == nil {
+		for _, f := range found {
+			if f == nil {
+				continue
+			}
+			t.Logf("found relative def=%q full=%q remote=%q", f.Definition, f.FullDefinition, f.RemoteLocation)
+		}
+	}
+	assert.NotNil(t, target)
+	if target == nil {
+		return
+	}
+	_, typeNode := utils.FindKeyNodeTop("type", target.Node.Content)
+	assert.NotNil(t, typeNode)
+	if typeNode != nil {
+		assert.Equal(t, "string", typeNode.Value)
+	}
 }
 
 func TestResolver_AllowedCircle_Array(t *testing.T) {

@@ -524,6 +524,29 @@ components:
 	assert.False(t, normalRef.IsExtensionRef, "Normal ref should NOT be marked as IsExtensionRef")
 }
 
+func TestSpecIndex_ExtractRefs_DynamicRef(t *testing.T) {
+	yml := `openapi: 3.1.0
+components:
+  schemas:
+    Generic:
+      $dynamicAnchor: item
+      type: string
+    UsesDynamic:
+      type: object
+      properties:
+        value:
+          $dynamicRef: '#item'`
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &rootNode)
+	c := CreateOpenAPIIndexConfig()
+	idx := NewSpecIndexWithConfig(&rootNode, c)
+
+	assert.Equal(t, 1, idx.GetRawReferenceCount())
+	assert.Len(t, idx.GetMappedReferencesSequenced(), 1)
+	mapped, _ := idx.SearchIndexForReference("#item")
+	assert.NotNil(t, mapped)
+}
+
 func TestSpecIndex_GetExtensionRefsSequenced(t *testing.T) {
 	yml := `openapi: 3.1.0
 info:
