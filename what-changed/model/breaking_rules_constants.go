@@ -79,6 +79,8 @@ const (
 	PropDependentRequired    = "dependentRequired"
 	PropDescription          = "description"
 	PropDevice               = "device"
+	PropDynamicAnchor        = "$dynamicAnchor"
+	PropDynamicRef           = "$dynamicRef"
 	PropDiscriminator        = "discriminator"
 	PropElse                 = "else"
 	PropEmail                = "email"
