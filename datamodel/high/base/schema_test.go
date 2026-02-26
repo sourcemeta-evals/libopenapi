@@ -1750,6 +1750,111 @@ components:
 	assert.Contains(t, output, "meow:")
 }
 
+func TestNewSchema_DynamicAnchorAndDynamicRef(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myAnchor
+$dynamicRef: "#myDynamicRef"
+description: schema with dynamic keywords`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "myAnchor", compiled.DynamicAnchor)
+	assert.Equal(t, "#myDynamicRef", compiled.DynamicRef)
+	assert.Equal(t, "schema with dynamic keywords", compiled.Description)
+}
+
+func TestNewSchema_DynamicAnchorOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: onlyAnchor`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "onlyAnchor", compiled.DynamicAnchor)
+	assert.Empty(t, compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicRefOnly(t *testing.T) {
+	testSpec := `type: object
+$dynamicRef: "#refOnly"`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+	assert.Empty(t, compiled.DynamicAnchor)
+	assert.Equal(t, "#refOnly", compiled.DynamicRef)
+}
+
+func TestNewSchema_DynamicAnchorAndRef_Render(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: myAnchor
+$dynamicRef: "#myDynamicRef"`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+
+	assert.NotNil(t, compiled)
+
+	// render to YAML and check the output
+	yamlBytes, renderErr := compiled.Render()
+	assert.NoError(t, renderErr)
+	output := string(yamlBytes)
+	assert.Contains(t, output, "$dynamicAnchor: myAnchor")
+	assert.Contains(t, output, "$dynamicRef:")
+}
+
 func TestSchema_MarshalYAMLInline_DiscriminatorWithNonRefSchemaProxy(t *testing.T) {
 	// Test that non-reference SchemaProxy entries are handled correctly
 	// (IsReference() returns false, so SetPreserveReference is not called)
