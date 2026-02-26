@@ -13,10 +13,10 @@ import (
 // Action represents a high-level Overlay Action Object.
 // https://spec.openapis.org/overlay/v1.0.0#action-object
 type Action struct {
-	Target      string                               `json:"target,omitempty" yaml:"target,omitempty"`
-	Description string                               `json:"description,omitempty" yaml:"description,omitempty"`
-	Update      *yaml.Node                           `json:"update,omitempty" yaml:"update,omitempty"`
-	Remove      bool                                 `json:"remove,omitempty" yaml:"remove,omitempty"`
+	Target      string                              `json:"target,omitempty" yaml:"target,omitempty"`
+	Description string                              `json:"description,omitempty" yaml:"description,omitempty"`
+	Update      *yaml.Node                          `json:"update,omitempty" yaml:"update,omitempty"`
+	Remove      bool                                `json:"remove,omitempty" yaml:"remove,omitempty"`
 	Extensions  *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
 	low         *low.Action
 }
