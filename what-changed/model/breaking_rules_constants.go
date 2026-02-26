@@ -69,6 +69,8 @@ const (
 	PropContact              = "contact"
 	PropContains             = "contains"
 	PropContentEncoding      = "contentEncoding"
+	PropDynamicAnchor        = "$dynamicAnchor"
+	PropDynamicRef           = "$dynamicRef"
 	PropContentMediaType     = "contentMediaType"
 	PropContentType          = "contentType"
 	PropDataValue            = "dataValue"

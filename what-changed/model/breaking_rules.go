@@ -334,6 +334,8 @@ func buildDefaultRules() *BreakingRulesConfig {
 			UnevaluatedItems:      rule(true, false, true),
 			UnevaluatedProperties: rule(true, true, true),
 			DependentRequired:     rule(false, true, true),
+			DynamicAnchor:         rule(false, true, false),
+			DynamicRef:            rule(false, true, false),
 			XML:                   rule(false, false, true),
 			SchemaDialect:         rule(true, true, true),
 		},
@@ -394,9 +396,9 @@ func buildDefaultRules() *BreakingRulesConfig {
 			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 			Scopes:            rule(false, false, true),
-			Flow:              rule(true, true, true),   // Swagger 2.0
-			AuthorizationURL:  rule(true, true, true),   // Swagger 2.0
-			TokenURL:          rule(true, true, true),   // Swagger 2.0
+			Flow:              rule(true, true, true), // Swagger 2.0
+			AuthorizationURL:  rule(true, true, true), // Swagger 2.0
+			TokenURL:          rule(true, true, true), // Swagger 2.0
 			Deprecated:        rule(false, false, false),
 		},
 
