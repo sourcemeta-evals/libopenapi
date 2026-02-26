@@ -448,12 +448,12 @@ func checkParameters(lParams, rParams []low.ValueReference[low.SharedParameters]
 	for i := range lParams {
 		s := lParams[i].Value.GetName().Value
 		lv[s] = lParams[i].Value
-		lRefs[s] = &lParams[i]  // Keep the reference wrapper
+		lRefs[s] = &lParams[i] // Keep the reference wrapper
 	}
 	for i := range rParams {
 		s := rParams[i].Value.GetName().Value
 		rv[s] = rParams[i].Value
-		rRefs[s] = &rParams[i]  // Keep the reference wrapper
+		rRefs[s] = &rParams[i] // Keep the reference wrapper
 	}
 
 	var paramChanges []*ParameterChanges
@@ -609,21 +609,23 @@ func compareOpenAPIPathItem(lPath, rPath *v3.PathItem, changes *[]*Change, pc *P
 	}
 	if !lPath.Query.IsEmpty() && rPath.Query.IsEmpty() {
 		CreateChange(changes, PropertyRemoved, v3.QueryLabel,
-			lPath.Query.ValueNode, nil, true, lPath.Query.Value, nil)
+			lPath.Query.ValueNode, nil, BreakingRemoved(CompPathItem, PropQuery), lPath.Query.Value, nil)
 	}
 	if lPath.Query.IsEmpty() && !rPath.Query.IsEmpty() {
 		CreateChange(changes, PropertyAdded, v3.QueryLabel,
-			nil, rPath.Query.ValueNode, false, nil, lPath.Query.Value)
+			nil, rPath.Query.ValueNode, BreakingAdded(CompPathItem, PropQuery), nil, lPath.Query.Value)
 	}
 
 	// additionalProperties (OpenAPI 3.2+)
 	if lPath.AdditionalOperations.Value != nil && rPath.AdditionalOperations.Value == nil {
 		CreateChange(changes, PropertyRemoved, v3.AdditionalOperationsLabel,
-			lPath.AdditionalOperations.ValueNode, nil, true, lPath.AdditionalOperations.Value, nil)
+			lPath.AdditionalOperations.ValueNode, nil,
+			BreakingRemoved(CompPathItem, PropAdditionalOperations), lPath.AdditionalOperations.Value, nil)
 	}
 	if lPath.AdditionalOperations.Value == nil && rPath.AdditionalOperations.Value != nil {
 		CreateChange(changes, PropertyAdded, v3.AdditionalOperationsLabel,
-			nil, rPath.AdditionalOperations.ValueNode, false, nil, rPath.AdditionalOperations.Value)
+			nil, rPath.AdditionalOperations.ValueNode,
+			BreakingAdded(CompPathItem, PropAdditionalOperations), nil, rPath.AdditionalOperations.Value)
 	}
 	if lPath.AdditionalOperations.Value != nil && rPath.AdditionalOperations.Value != nil {
 
@@ -652,7 +654,8 @@ func compareOpenAPIPathItem(lPath, rPath *v3.PathItem, changes *[]*Change, pc *P
 			// not found, was removed
 			if !found {
 				CreateChange(changes, PropertyRemoved, v3.AdditionalOperationsLabel,
-					lPath.AdditionalOperations.Value.GetOrZero(lKeys[i]).ValueNode, nil, true,
+					lPath.AdditionalOperations.Value.GetOrZero(lKeys[i]).ValueNode, nil,
+					BreakingRemoved(CompPathItem, PropAdditionalOperations),
 					lPath.AdditionalOperations.Value.GetOrZero(lKeys[i]).Value, nil)
 			}
 		}
@@ -670,7 +673,8 @@ func compareOpenAPIPathItem(lPath, rPath *v3.PathItem, changes *[]*Change, pc *P
 			// not found, was added
 			if !found {
 				CreateChange(changes, PropertyAdded, v3.AdditionalOperationsLabel,
-					nil, rPath.AdditionalOperations.Value.GetOrZero(rKeys[i]).ValueNode, false,
+					nil, rPath.AdditionalOperations.Value.GetOrZero(rKeys[i]).ValueNode,
+					BreakingAdded(CompPathItem, PropAdditionalOperations),
 					nil, rPath.AdditionalOperations.Value.GetOrZero(rKeys[i]).Value)
 			}
 		}
