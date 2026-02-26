@@ -544,3 +544,28 @@ components:
 	assert.True(t, strings.Contains(logOutput, "external_schema.yaml"),
 		"Expected log to contain the file location")
 }
+
+func TestFindComponentInRoot_DynamicAnchor(t *testing.T) {
+	yml := []byte(`$defs:
+  generic:
+    $dynamicAnchor: T
+    type: string
+  static:
+    $anchor: S
+    type: integer`)
+	var rootNode yaml.Node
+	_ = yaml.Unmarshal(yml, &rootNode)
+
+	cfg := CreateClosedAPIIndexConfig()
+	cfg.SkipDocumentCheck = true
+	idx := NewSpecIndexWithConfig(&rootNode, cfg)
+
+	dyn := idx.FindComponentInRoot(context.Background(), "#T")
+	assert.NotNil(t, dyn)
+	assert.Equal(t, "#T", dyn.Definition)
+	assert.Equal(t, "T", dyn.Name)
+
+	stat := idx.FindComponentInRoot(context.Background(), "#S")
+	assert.NotNil(t, stat)
+	assert.Equal(t, "#S", stat.Definition)
+}

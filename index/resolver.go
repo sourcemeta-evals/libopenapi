@@ -516,7 +516,7 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 
 			}
 
-			if i%2 == 0 && n.Value == "$ref" && len(node.Content) > i%2+1 {
+			if i%2 == 0 && (n.Value == "$ref" || n.Value == "$dynamicRef") && len(node.Content) > i%2+1 {
 
 				if !utils.IsNodeStringValue(node.Content[i+1]) {
 					continue
@@ -532,80 +532,16 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 				var fullDef string
 				var definition string
 
-				// explode value
-				exp := strings.Split(value, "#/")
-				if len(exp) == 2 {
-					definition = fmt.Sprintf("#/%s", exp[1])
-					if exp[0] != "" {
-						if strings.HasPrefix(exp[0], "http") {
-							fullDef = value
-						} else {
-							if strings.HasPrefix(ref.FullDefinition, "http") {
-
-								// split the http URI into parts
-								httpExp := strings.Split(ref.FullDefinition, "#/")
-
-								u, _ := url.Parse(httpExp[0])
-								abs, _ := filepath.Abs(utils.CheckPathOverlap(path.Dir(u.Path), exp[0], string(filepath.Separator)))
-								u.Path = utils.ReplaceWindowsDriveWithLinuxPath(abs)
-								u.Fragment = ""
-								fullDef = fmt.Sprintf("%s#/%s", u.String(), exp[1])
-
-							} else {
-
-								// split the referring ref full def into parts
-								fileDef := strings.Split(ref.FullDefinition, "#/")
-
-								// extract the location of the ref and build a full def path.
-								abs, _ := filepath.Abs(utils.CheckPathOverlap(filepath.Dir(fileDef[0]), exp[0], string(filepath.Separator)))
-								// abs = utils.ReplaceWindowsDriveWithLinuxPath(abs)
-								fullDef = fmt.Sprintf("%s#/%s", abs, exp[1])
-
-							}
-						}
+				fullDef = resolver.buildDefPath(ref, value)
+				if strings.Contains(value, "#") {
+					_, frag, _ := strings.Cut(value, "#")
+					if frag != "" {
+						definition = fmt.Sprintf("#%s", frag)
 					} else {
-						// local component, full def is based on passed in ref
-						if strings.HasPrefix(ref.FullDefinition, "http") {
-
-							// split the http URI into parts
-							httpExp := strings.Split(ref.FullDefinition, "#/")
-
-							// parse a URL from the full def
-							u, _ := url.Parse(httpExp[0])
-
-							// extract the location of the ref and build a full def path.
-							fullDef = fmt.Sprintf("%s#/%s", u.String(), exp[1])
-
-						} else {
-							// split the full def into parts
-							fileDef := strings.Split(ref.FullDefinition, "#/")
-							fullDef = fmt.Sprintf("%s#/%s", fileDef[0], exp[1])
-						}
+						definition = value
 					}
 				} else {
-
 					definition = value
-
-					// if the reference is a http link
-					if strings.HasPrefix(value, "http") {
-						fullDef = value
-					} else {
-
-						// split the full def into parts
-						fileDef := strings.Split(ref.FullDefinition, "#/")
-
-						// is the file def a http link?
-						if strings.HasPrefix(fileDef[0], "http") {
-							u, _ := url.Parse(fileDef[0])
-							absPath, _ := filepath.Abs(utils.CheckPathOverlap(path.Dir(u.Path), exp[0], string(filepath.Separator)))
-							u.Path = utils.ReplaceWindowsDriveWithLinuxPath(absPath)
-							fullDef = u.String()
-
-						} else {
-							fullDef, _ = filepath.Abs(utils.CheckPathOverlap(filepath.Dir(fileDef[0]), exp[0], string(filepath.Separator)))
-						}
-
-					}
 				}
 
 				searchRef := &Reference{
@@ -616,6 +552,9 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 				}
 
 				locatedRef, _ = resolver.specIndex.SearchIndexForReferenceByReference(searchRef)
+				if n.Value == "$dynamicRef" {
+					locatedRef = resolver.resolveDynamicReferenceTarget(journey, locatedRef, value)
+				}
 
 				if locatedRef == nil {
 					_, path := utils.ConvertComponentIdIntoFriendlyPathSearch(value)
@@ -653,7 +592,7 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 				foundRelatives[value] = true
 			}
 
-			if i%2 == 0 && n.Value != "$ref" && n.Value != "" {
+			if i%2 == 0 && n.Value != "$ref" && n.Value != "$dynamicRef" && n.Value != "" {
 				// Check if we're inside a properties object
 				isInsideProperties := false
 				if parent != nil {
@@ -821,8 +760,68 @@ func (resolver *Resolver) extractRelatives(ref *Reference, node, parent *yaml.No
 	return found
 }
 
+func dynamicAnchorName(node *yaml.Node) string {
+	if node == nil || !utils.IsNodeMap(node) {
+		return ""
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == "$dynamicAnchor" {
+			return node.Content[i+1].Value
+		}
+	}
+	return ""
+}
+
+func (resolver *Resolver) resolveDynamicReferenceTarget(journey []*Reference, locatedRef *Reference, value string) *Reference {
+	if locatedRef == nil || !strings.Contains(value, "#") {
+		return locatedRef
+	}
+	_, frag, _ := strings.Cut(value, "#")
+	if frag == "" || strings.HasPrefix(frag, "/") {
+		return locatedRef
+	}
+	if dynamicAnchorName(locatedRef.Node) != frag {
+		return locatedRef
+	}
+	for i := len(journey) - 1; i >= 0; i-- {
+		candidate := journey[i]
+		if candidate == nil || candidate == locatedRef {
+			continue
+		}
+		if dynamicAnchorName(candidate.Node) == frag {
+			return candidate
+		}
+	}
+	return locatedRef
+}
+
 func (resolver *Resolver) buildDefPath(ref *Reference, l string) string {
 	def := ""
+	if strings.Contains(l, "#") && !strings.Contains(l, "#/") {
+		base, frag, _ := strings.Cut(l, "#")
+		if base == "" {
+			if strings.HasPrefix(ref.FullDefinition, "http") {
+				u, _ := url.Parse(ref.FullDefinition)
+				u.Fragment = ""
+				return fmt.Sprintf("%s#%s", u.String(), frag)
+			}
+			fdexp := strings.SplitN(ref.FullDefinition, "#", 2)
+			return fmt.Sprintf("%s#%s", fdexp[0], frag)
+		}
+		if strings.HasPrefix(base, "http") || filepath.IsAbs(base) {
+			return fmt.Sprintf("%s#%s", base, frag)
+		}
+		if strings.HasPrefix(ref.FullDefinition, "http") {
+			u, _ := url.Parse(ref.FullDefinition)
+			u.Fragment = ""
+			p, _ := filepath.Abs(utils.CheckPathOverlap(path.Dir(u.Path), base, string(filepath.Separator)))
+			u.Path = utils.ReplaceWindowsDriveWithLinuxPath(p)
+			return fmt.Sprintf("%s#%s", u.String(), frag)
+		}
+		fdexp := strings.SplitN(ref.FullDefinition, "#", 2)
+		abs, _ := filepath.Abs(utils.CheckPathOverlap(filepath.Dir(fdexp[0]), base, string(filepath.Separator)))
+		return fmt.Sprintf("%s#%s", abs, frag)
+	}
 	exp := strings.Split(l, "#/")
 	if len(exp) == 2 {
 		if exp[0] != "" {

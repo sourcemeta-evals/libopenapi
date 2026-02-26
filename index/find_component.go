@@ -26,6 +26,15 @@ func (index *SpecIndex) FindComponent(ctx context.Context, componentId string) *
 		return nil
 	}
 
+	if strings.Contains(componentId, "#") && !strings.Contains(componentId, "#/") {
+		base, frag, _ := strings.Cut(componentId, "#")
+		anchorRef := fmt.Sprintf("#%s", frag)
+		if base == "" || index.specAbsolutePath == base {
+			return index.FindComponentInRoot(ctx, anchorRef)
+		}
+		return index.lookupRolodex(ctx, []string{base, anchorRef})
+	}
+
 	uri := strings.Split(componentId, "#/")
 	if len(uri) == 2 {
 		if uri[0] != "" {
@@ -73,6 +82,10 @@ func FindComponent(_ context.Context, root *yaml.Node, componentId, absoluteFile
 	if strings.Contains(componentId, "%") {
 		// decode the url.
 		componentId, _ = url.QueryUnescape(componentId)
+	}
+
+	if strings.HasPrefix(componentId, "#") && !strings.HasPrefix(componentId, "#/") {
+		return findAnchorComponent(root, strings.TrimPrefix(componentId, "#"), absoluteFilePath, index)
 	}
 
 	name, friendlySearch := utils.ConvertComponentIdIntoFriendlyPathSearch(componentId)
@@ -131,6 +144,63 @@ func (index *SpecIndex) FindComponentInRoot(ctx context.Context, componentId str
 		return FindComponent(ctx, index.root, componentId, index.specAbsolutePath, index)
 	}
 	return nil
+}
+
+func findAnchorComponent(root *yaml.Node, anchor, absoluteFilePath string, index *SpecIndex) *Reference {
+	var locate func(node *yaml.Node) *yaml.Node
+	locate = func(node *yaml.Node) *yaml.Node {
+		if node == nil {
+			return nil
+		}
+		if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+			return locate(node.Content[0])
+		}
+		if utils.IsNodeMap(node) {
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				k := node.Content[i]
+				v := node.Content[i+1]
+				if (k.Value == "$anchor" || k.Value == "$dynamicAnchor") && v.Value == anchor {
+					return node
+				}
+			}
+		}
+		for _, c := range node.Content {
+			if found := locate(c); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+
+	resNode := locate(root)
+	if resNode == nil {
+		return nil
+	}
+
+	componentID := fmt.Sprintf("#%s", anchor)
+	fullDef := fmt.Sprintf("%s%s", absoluteFilePath, componentID)
+	var parentNode *yaml.Node
+	if index != nil {
+		if index.allRefs[componentID] != nil {
+			parentNode = index.allRefs[componentID].ParentNode
+		}
+		if index.allRefs[fullDef] != nil {
+			parentNode = index.allRefs[fullDef].ParentNode
+		}
+	}
+
+	ref := &Reference{
+		FullDefinition:        fullDef,
+		Definition:            componentID,
+		Name:                  anchor,
+		Node:                  resNode,
+		Path:                  "$",
+		RemoteLocation:        absoluteFilePath,
+		ParentNode:            parentNode,
+		Index:                 index,
+		RequiredRefProperties: extractDefinitionRequiredRefProperties(resNode, map[string][]string{}, fullDef, index),
+	}
+	return ref
 }
 
 func (index *SpecIndex) lookupRolodex(ctx context.Context, uri []string) *Reference {
@@ -206,7 +276,11 @@ func (index *SpecIndex) lookupRolodex(ctx context.Context, uri []string) *Refere
 		if len(uri) < 2 {
 			wholeFile = true
 		} else {
-			query = fmt.Sprintf("#/%s", uri[1])
+			if strings.HasPrefix(uri[1], "#") {
+				query = uri[1]
+			} else {
+				query = fmt.Sprintf("#/%s", uri[1])
+			}
 		}
 
 		// check if there is a component we want to suck in, or if the

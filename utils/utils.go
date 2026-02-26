@@ -595,7 +595,7 @@ func IsNodeRefValue(node *yaml.Node) (bool, *yaml.Node, string) {
 	n := NodeAlias(node)
 	for i, r := range n.Content {
 		if i%2 == 0 {
-			if r.Value == "$ref" {
+			if r.Value == "$ref" || r.Value == "$dynamicRef" {
 				if i+1 < len(n.Content) {
 					return true, r, n.Content[i+1].Value
 				}

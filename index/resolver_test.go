@@ -1472,4 +1472,24 @@ func TestVisitReference_Nil(t *testing.T) {
 	assert.Nil(t, n)
 }
 
+func TestResolver_ResolveDynamicReferenceTarget(t *testing.T) {
+	resolver := &Resolver{}
+	innerNode := utils.CreateYamlNode(map[string]any{"$dynamicAnchor": "T"})
+	outerNode := utils.CreateYamlNode(map[string]any{"$dynamicAnchor": "T"})
+	otherNode := utils.CreateYamlNode(map[string]any{"$dynamicAnchor": "U"})
+
+	located := &Reference{FullDefinition: "#/defs/inner#T", Node: innerNode}
+	journey := []*Reference{
+		{FullDefinition: "#/defs/outer#T", Node: outerNode},
+		{FullDefinition: "#/defs/other#U", Node: otherNode},
+		located,
+	}
+
+	resolved := resolver.resolveDynamicReferenceTarget(journey, located, "#T")
+	assert.Same(t, journey[0], resolved)
+
+	static := resolver.resolveDynamicReferenceTarget(journey, located, "#/defs/not-an-anchor")
+	assert.Same(t, located, static)
+}
+
 // func (resolver *Resolver) VisitReference(ref *Reference, seen map[string]bool, journey []*Reference, resolve bool) []*yaml.Node {

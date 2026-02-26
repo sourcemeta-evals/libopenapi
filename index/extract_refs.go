@@ -217,7 +217,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value == "$ref" {
+			if i%2 == 0 && (n.Value == "$ref" || n.Value == "$dynamicRef") {
 
 				// Check if this reference is under an extension path (x-* field).
 				// Always compute this so we can mark refs with IsExtensionRef.
@@ -273,7 +273,39 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 
 					var componentName string
 					var fullDefinitionPath string
-					if len(uri) == 2 {
+					if strings.Contains(value, "#") && !strings.Contains(value, "#/") {
+						base, frag, _ := strings.Cut(value, "#")
+						componentName = fmt.Sprintf("#%s", frag)
+						if base == "" {
+							fullDefinitionPath = fmt.Sprintf("%s#%s", index.specAbsolutePath, frag)
+						} else if strings.HasPrefix(base, "http") || filepath.IsAbs(base) {
+							fullDefinitionPath = fmt.Sprintf("%s#%s", base, frag)
+						} else {
+							if index.config.BasePath != "" && index.config.BaseURL == nil {
+								abs, _ := filepath.Abs(utils.CheckPathOverlap(index.config.BasePath, base, string(os.PathSeparator)))
+								if abs != defRoot {
+									abs, _ = filepath.Abs(utils.CheckPathOverlap(defRoot, base, string(os.PathSeparator)))
+								}
+								fullDefinitionPath = fmt.Sprintf("%s#%s", abs, frag)
+							} else if index.config.BaseURL != nil && !filepath.IsAbs(defRoot) {
+								var u url.URL
+								if strings.HasPrefix(defRoot, "http") {
+									up, _ := url.Parse(defRoot)
+									up.Path = utils.ReplaceWindowsDriveWithLinuxPath(filepath.Dir(up.Path))
+									u = *up
+								} else {
+									u = *index.config.BaseURL
+								}
+								abs := utils.CheckPathOverlap(u.Path, base, string(os.PathSeparator))
+								u.Path = utils.ReplaceWindowsDriveWithLinuxPath(abs)
+								fullDefinitionPath = fmt.Sprintf("%s#%s", u.String(), frag)
+							} else {
+								abs, _ := filepath.Abs(utils.CheckPathOverlap(defRoot, base, string(os.PathSeparator)))
+								fullDefinitionPath = fmt.Sprintf("%s#%s", abs, frag)
+							}
+						}
+					}
+					if fullDefinitionPath == "" && len(uri) == 2 {
 						// Check if we are dealing with a ref to a local definition.
 						if uri[0] == "" {
 							fullDefinitionPath = fmt.Sprintf("%s#/%s", index.specAbsolutePath, uri[1])
@@ -498,7 +530,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value != "$ref" && n.Value != "" {
+			if i%2 == 0 && n.Value != "$ref" && n.Value != "$dynamicRef" && n.Value != "" {
 
 				v := n.Value
 				if strings.HasPrefix(v, "/") {
