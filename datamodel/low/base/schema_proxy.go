@@ -293,7 +293,7 @@ func (sp *SchemaProxy) attemptPropertyMerging(node *yaml.Node, config *datamodel
 
 	for i := 0; i < len(node.Content); i += 2 {
 		if i+1 < len(node.Content) {
-			if node.Content[i].Value == "$ref" {
+			if node.Content[i].Value == "$ref" || node.Content[i].Value == "$dynamicRef" {
 				refValue = node.Content[i+1].Value
 			} else {
 				siblings[node.Content[i].Value] = node.Content[i+1]

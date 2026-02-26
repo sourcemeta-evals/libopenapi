@@ -157,7 +157,9 @@ contains:
 maxContains: 10
 minContains: 1
 uniqueItems: true
-$anchor: anchor`
+$anchor: anchor
+$dynamicAnchor: dyn-anchor
+$dynamicRef: '#dyn-anchor'`
 }
 
 func Test_Schema(t *testing.T) {
@@ -350,6 +352,9 @@ func Test_Schema(t *testing.T) {
 	assert.Equal(t, "boolean", sch.UnevaluatedItems.Value.Schema().Type.Value.A)
 	assert.Equal(t, "integer", sch.UnevaluatedProperties.Value.A.Schema().Type.Value.A)
 	assert.Equal(t, "anchor", sch.Anchor.Value)
+	assert.Equal(t, "dyn-anchor", sch.DynamicAnchor.Value)
+	assert.Equal(t, "#dyn-anchor", sch.DynamicRef.Value)
+	assert.Equal(t, "#dyn-anchor", sch.DynamicRef.GetReference())
 }
 
 func TestSchemaAllOfSequenceOrder(t *testing.T) {

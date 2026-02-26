@@ -217,7 +217,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value == "$ref" {
+			if i%2 == 0 && (n.Value == "$ref" || n.Value == "$dynamicRef") {
 
 				// Check if this reference is under an extension path (x-* field).
 				// Always compute this so we can mark refs with IsExtensionRef.
@@ -379,7 +379,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 
 					if hasSiblings {
 						for j := 0; j < len(node.Content); j += 2 {
-							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" {
+							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" && node.Content[j].Value != "$dynamicRef" {
 								siblingProps[node.Content[j].Value] = node.Content[j+1]
 								siblingKeys = append(siblingKeys, node.Content[j])
 							}
@@ -425,7 +425,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 						var siblingKeys []*yaml.Node
 
 						for j := 0; j < len(node.Content); j += 2 {
-							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" {
+							if j+1 < len(node.Content) && node.Content[j].Value != "$ref" && node.Content[j].Value != "$dynamicRef" {
 								siblingProps[node.Content[j].Value] = node.Content[j+1]
 								siblingKeys = append(siblingKeys, node.Content[j])
 							}
@@ -498,7 +498,7 @@ func (index *SpecIndex) ExtractRefs(ctx context.Context, node, parent *yaml.Node
 				}
 			}
 
-			if i%2 == 0 && n.Value != "$ref" && n.Value != "" {
+			if i%2 == 0 && n.Value != "$ref" && n.Value != "$dynamicRef" && n.Value != "" {
 
 				v := n.Value
 				if strings.HasPrefix(v, "/") {

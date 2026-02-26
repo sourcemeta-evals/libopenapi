@@ -75,7 +75,9 @@ type Schema struct {
 	Items *DynamicValue[*SchemaProxy, bool] `json:"items,omitempty" yaml:"items,omitempty"`
 
 	// 3.1 only, part of the JSON Schema spec provides a way to identify a sub-schema
-	Anchor string `json:"$anchor,omitempty" yaml:"$anchor,omitempty"`
+	Anchor        string `json:"$anchor,omitempty" yaml:"$anchor,omitempty"`
+	DynamicAnchor string `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
+	DynamicRef    string `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
 
 	// Compatible with all versions
 	Not                  *SchemaProxy                          `json:"not,omitempty" yaml:"not,omitempty"`
@@ -308,6 +310,12 @@ func NewSchema(schema *base.Schema) *Schema {
 
 	if !schema.Anchor.IsEmpty() {
 		s.Anchor = schema.Anchor.Value
+	}
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicAnchor.Value
+	}
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicRef = schema.DynamicRef.Value
 	}
 
 	var enum []*yaml.Node

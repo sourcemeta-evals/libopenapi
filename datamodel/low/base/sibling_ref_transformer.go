@@ -32,12 +32,12 @@ func (srt *SiblingRefTransformer) TransformSiblingRef(node *yaml.Node) (*yaml.No
 		return node, nil // no transformation needed
 	}
 
-	siblings, refValue := srt.ExtractSiblingProperties(node)
-	return srt.CreateAllOfStructure(refValue, siblings), nil
+	siblings, refKeyword, refValue := srt.ExtractSiblingProperties(node)
+	return srt.CreateAllOfStructure(refKeyword, refValue, siblings), nil
 }
 
 // CreateAllOfStructure creates an allOf node structure from ref value and sibling properties
-func (srt *SiblingRefTransformer) CreateAllOfStructure(refValue string, siblings map[string]*yaml.Node) *yaml.Node {
+func (srt *SiblingRefTransformer) CreateAllOfStructure(refKeyword, refValue string, siblings map[string]*yaml.Node) *yaml.Node {
 
 	allOfNode := &yaml.Node{
 		Kind: yaml.MappingNode,
@@ -67,7 +67,7 @@ func (srt *SiblingRefTransformer) CreateAllOfStructure(refValue string, siblings
 		Kind: yaml.MappingNode,
 		Tag:  "!!map",
 		Content: []*yaml.Node{
-			{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref"},
+			{Kind: yaml.ScalarNode, Tag: "!!str", Value: refKeyword},
 			{Kind: yaml.ScalarNode, Tag: "!!str", Value: refValue},
 		},
 	}
@@ -76,14 +76,15 @@ func (srt *SiblingRefTransformer) CreateAllOfStructure(refValue string, siblings
 	return allOfNode
 }
 
-// ExtractSiblingProperties extracts sibling properties from a node containing $ref
-// returns a map of sibling properties and the $ref value
-func (srt *SiblingRefTransformer) ExtractSiblingProperties(node *yaml.Node) (map[string]*yaml.Node, string) {
+// ExtractSiblingProperties extracts sibling properties from a node containing $ref or $dynamicRef
+// returns a map of sibling properties, the ref keyword, and the ref value
+func (srt *SiblingRefTransformer) ExtractSiblingProperties(node *yaml.Node) (map[string]*yaml.Node, string, string) {
 	if !utils.IsNodeMap(node) || len(node.Content) < 4 { // need at least $ref + one sibling
-		return nil, ""
+		return nil, "", ""
 	}
 
 	siblings := make(map[string]*yaml.Node)
+	var refKeyword string
 	var refValue string
 
 	for i := 0; i < len(node.Content); i += 2 {
@@ -94,18 +95,19 @@ func (srt *SiblingRefTransformer) ExtractSiblingProperties(node *yaml.Node) (map
 		keyNode := node.Content[i]
 		valueNode := node.Content[i+1]
 
-		if keyNode.Value == "$ref" {
+		if keyNode.Value == "$ref" || keyNode.Value == "$dynamicRef" {
+			refKeyword = keyNode.Value
 			refValue = valueNode.Value
 		} else {
 			siblings[keyNode.Value] = valueNode
 		}
 	}
 
-	if refValue == "" || len(siblings) == 0 {
-		return nil, ""
+	if refKeyword == "" || refValue == "" || len(siblings) == 0 {
+		return nil, "", ""
 	}
 
-	return siblings, refValue
+	return siblings, refKeyword, refValue
 }
 
 // ShouldTransform determines if a node should be transformed based on configuration and content
@@ -118,8 +120,8 @@ func (srt *SiblingRefTransformer) ShouldTransform(node *yaml.Node) bool {
 		return false
 	}
 
-	siblings, refValue := srt.ExtractSiblingProperties(node)
-	return len(siblings) > 0 && refValue != ""
+	siblings, refKeyword, refValue := srt.ExtractSiblingProperties(node)
+	return len(siblings) > 0 && refKeyword != "" && refValue != ""
 }
 
 // copyNode creates a deep copy of a yaml node to avoid modifying the original

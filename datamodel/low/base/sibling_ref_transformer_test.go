@@ -40,8 +40,9 @@ $ref: "#/components/schemas/Base"`
 		// get the actual content node (document node contains the content)
 		actualNode := node.Content[0]
 
-		siblings, refValue := transformer.ExtractSiblingProperties(actualNode)
+		siblings, refKeyword, refValue := transformer.ExtractSiblingProperties(actualNode)
 
+		assert.Equal(t, "$ref", refKeyword)
 		assert.Equal(t, "#/components/schemas/Base", refValue)
 		assert.Len(t, siblings, 2)
 		assert.Contains(t, siblings, "title")
@@ -62,8 +63,9 @@ $ref: "#/components/schemas/Base"`
 		// get the actual content node (document node contains the content)
 		actualNode := node.Content[0]
 
-		siblings, refValue := transformer.ExtractSiblingProperties(actualNode)
+		siblings, refKeyword, refValue := transformer.ExtractSiblingProperties(actualNode)
 
+		assert.Empty(t, refKeyword)
 		assert.Empty(t, refValue)
 		assert.Empty(t, siblings)
 	})
@@ -77,8 +79,9 @@ description: "Custom Description"`
 		// get the actual content node (document node contains the content)
 		actualNode := node.Content[0]
 
-		siblings, refValue := transformer.ExtractSiblingProperties(actualNode)
+		siblings, refKeyword, refValue := transformer.ExtractSiblingProperties(actualNode)
 
+		assert.Empty(t, refKeyword)
 		assert.Empty(t, refValue)
 		assert.Empty(t, siblings)
 	})
@@ -95,8 +98,9 @@ $ref: "#/components/schemas/Base"`
 		// get the actual content node (document node contains the content)
 		actualNode := node.Content[0]
 
-		siblings, refValue := transformer.ExtractSiblingProperties(actualNode)
+		siblings, refKeyword, refValue := transformer.ExtractSiblingProperties(actualNode)
 
+		assert.Equal(t, "$ref", refKeyword)
 		assert.Equal(t, "#/components/schemas/Base", refValue)
 		assert.Len(t, siblings, 4)
 		assert.Contains(t, siblings, "title")
@@ -120,7 +124,7 @@ func TestSiblingRefTransformer_CreateAllOfStructure(t *testing.T) {
 		}
 		refValue := "#/components/schemas/Base"
 
-		result := transformer.CreateAllOfStructure(refValue, siblings)
+		result := transformer.CreateAllOfStructure("$ref", refValue, siblings)
 
 		assert.NotNil(t, result)
 		assert.Equal(t, yaml.MappingNode, result.Kind)
@@ -151,7 +155,7 @@ func TestSiblingRefTransformer_CreateAllOfStructure(t *testing.T) {
 		siblings := map[string]*yaml.Node{}
 		refValue := "#/components/schemas/Base"
 
-		result := transformer.CreateAllOfStructure(refValue, siblings)
+		result := transformer.CreateAllOfStructure("$ref", refValue, siblings)
 
 		assert.NotNil(t, result)
 		// should still create structure but with only ref element
@@ -311,7 +315,7 @@ $ref: "#/components/schemas/Base"`
 		}
 
 		// this should trigger the break at line 91
-		siblings, _ := transformer.ExtractSiblingProperties(node)
+		siblings, _, _ := transformer.ExtractSiblingProperties(node)
 
 		// should extract ref but not the incomplete title property
 		assert.Empty(t, siblings)
@@ -479,7 +483,7 @@ func TestSiblingRefTransformer_copyNode(t *testing.T) {
 
 func TestSiblingRefTransformer_ChecBreak(t *testing.T) {
 	transformer := NewSiblingRefTransformer(nil)
-	result, str := transformer.ExtractSiblingProperties(&yaml.Node{
+	result, _, str := transformer.ExtractSiblingProperties(&yaml.Node{
 		Kind: yaml.MappingNode,
 		Tag:  "!!map",
 		Content: []*yaml.Node{
