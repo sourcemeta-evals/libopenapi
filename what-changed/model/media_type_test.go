@@ -541,6 +541,49 @@ itemEncoding:
 	assert.Greater(t, changes.TotalChanges(), 0)
 }
 
+func TestCompareMediaTypes_ItemEncodingRemoved(t *testing.T) {
+	// Clear hash cache for deterministic testing
+	low.ClearHashCache()
+
+	left := `schema:
+  type: array
+itemEncoding:
+  file:
+    contentType: image/jpeg
+    allowReserved: true`
+
+	right := `schema:
+  type: array`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndex(&lNode)
+	rIdx := index.NewSpecIndex(&rNode)
+
+	var lMt, rMt v3.MediaType
+	_ = low.BuildModel(&lNode, &lMt)
+	_ = low.BuildModel(&rNode, &rMt)
+	_ = lMt.Build(context.Background(), nil, lNode.Content[0], lIdx)
+	_ = rMt.Build(context.Background(), nil, rNode.Content[0], rIdx)
+
+	changes := CompareMediaTypes(&lMt, &rMt)
+
+	assert.NotNil(t, changes)
+	// ItemEncodingChanges is an empty map when encoding is removed (not nil)
+	// because the removal is tracked as a PropertyChange, not an encoding modification
+	assert.Equal(t, 0, len(changes.ItemEncodingChanges))
+	assert.Equal(t, 1, changes.TotalChanges())
+	assert.Equal(t, 1, changes.TotalBreakingChanges()) // Removing itemEncoding is breaking
+
+	// Check that the change is ObjectRemoved for itemEncoding
+	allChanges := changes.GetAllChanges()
+	assert.Len(t, allChanges, 1)
+	assert.Equal(t, ObjectRemoved, allChanges[0].ChangeType)
+	assert.Equal(t, v3.ItemEncodingLabel, allChanges[0].Property)
+}
+
 func TestCompareMediaTypes_BothEncodingTypes(t *testing.T) {
 	// Clear hash cache for deterministic testing
 	low.ClearHashCache()
