@@ -509,6 +509,24 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteString(s.DynamicRef.Value)
 		sb.WriteByte('|')
 	}
+	sb.WriteString(s.Comment.Value)
+	sb.WriteByte(',')
+	if !s.ContentSchema.IsEmpty() && s.ContentSchema.ValueNode != nil {
+		sb.WriteString(s.ContentSchema.ValueNode.Tag)
+		for _, n := range s.ContentSchema.ValueNode.Content {
+			sb.WriteByte(':')
+			sb.WriteString(n.Value)
+		}
+		sb.WriteByte(',')
+	}
+	if s.Vocabulary.Value != nil {
+		for k, v := range s.Vocabulary.Value.FromOldest() {
+			sb.WriteString(k.Value)
+			sb.WriteByte('=')
+			sb.WriteString(fmt.Sprint(v.Value))
+			sb.WriteByte(',')
+		}
+	}
 
 	// Process dependent schemas and pattern properties
 	for _, hash := range low.AppendMapHashes(nil, orderedmap.SortAlpha(s.DependentSchemas.Value)) {

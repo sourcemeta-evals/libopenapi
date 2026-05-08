@@ -5156,3 +5156,92 @@ components:
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.Nil(t, changes)
 }
+
+func TestCompareSchemas_NewKeywords_Comment(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: l
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: r
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      $comment: hello`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+}
+
+func TestCompareSchemas_NewKeywords_ContentSchema(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: l
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string`
+
+	right := `openapi: "3.1.0"
+info:
+  title: r
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentSchema:
+        type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+}
+
+func TestCompareSchemas_NewKeywords_Vocabulary(t *testing.T) {
+	low.ClearHashCache()
+	left := `openapi: "3.1.0"
+info:
+  title: l
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: r
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      $vocabulary:
+        https://example.com/vocab/core: true`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+}

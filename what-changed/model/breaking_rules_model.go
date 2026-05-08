@@ -193,6 +193,8 @@ type SchemaRules struct {
 	DynamicAnchor         *BreakingChangeRule `json:"$dynamicAnchor,omitempty" yaml:"$dynamicAnchor,omitempty"`
 	DynamicRef            *BreakingChangeRule `json:"$dynamicRef,omitempty" yaml:"$dynamicRef,omitempty"`
 	Id                    *BreakingChangeRule `json:"$id,omitempty" yaml:"$id,omitempty"`
+	ContentSchema         *BreakingChangeRule `json:"contentSchema,omitempty" yaml:"contentSchema,omitempty"`
+	Vocabulary            *BreakingChangeRule `json:"$vocabulary,omitempty" yaml:"$vocabulary,omitempty"`
 	DependentRequired     *BreakingChangeRule `json:"dependentRequired,omitempty" yaml:"dependentRequired,omitempty"`
 	XML                   *BreakingChangeRule `json:"xml,omitempty" yaml:"xml,omitempty"`
 	SchemaDialect         *BreakingChangeRule `json:"schemaDialect,omitempty" yaml:"schemaDialect,omitempty"`

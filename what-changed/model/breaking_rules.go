@@ -336,6 +336,8 @@ func buildDefaultRules() *BreakingRulesConfig {
 			DynamicAnchor:         rule(false, true, true), // $dynamicAnchor: modification/removal is breaking
 			DynamicRef:            rule(false, true, true), // $dynamicRef: modification/removal is breaking
 			Id:                    rule(true, true, true),  // $id: all changes are breaking (affects reference resolution)
+			ContentSchema:         rule(true, true, true),
+			Vocabulary:            rule(true, true, true),
 			DependentRequired:     rule(false, true, true),
 			XML:                   rule(false, false, true),
 			SchemaDialect:         rule(true, true, true),
