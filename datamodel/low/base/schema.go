@@ -904,6 +904,32 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		}
 	}
 
+	// handle $vocabulary if set. (JSON Schema 2020-12 - typically in meta-schemas)
+	_, vocabLabel, vocabNode := utils.FindKeyNodeFullTop(VocabularyLabel, root.Content)
+	if vocabNode != nil && utils.IsNodeMap(vocabNode) {
+		vocabularyMap := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
+		var currentKey *yaml.Node
+		for i, node := range vocabNode.Content {
+			if i%2 == 0 {
+				currentKey = node
+				continue
+			}
+			boolVal, _ := strconv.ParseBool(node.Value)
+			vocabularyMap.Set(low.KeyReference[string]{
+				KeyNode: currentKey,
+				Value:   currentKey.Value,
+			}, low.ValueReference[bool]{
+				Value:     boolVal,
+				ValueNode: node,
+			})
+		}
+		s.Vocabulary = low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]]{
+			Value:     vocabularyMap,
+			KeyNode:   vocabLabel,
+			ValueNode: vocabNode,
+		}
+	}
+
 	// handle example if set. (3.0)
 	_, expLabel, expNode := utils.FindKeyNodeFullTop(ExampleLabel, root.Content)
 	if expNode != nil {
