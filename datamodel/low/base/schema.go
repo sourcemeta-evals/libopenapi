@@ -509,8 +509,10 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteString(s.DynamicRef.Value)
 		sb.WriteByte('|')
 	}
-	sb.WriteString(s.Comment.Value)
-	sb.WriteByte(',')
+	if !s.Comment.IsEmpty() {
+		sb.WriteString(s.Comment.Value)
+		sb.WriteByte(',')
+	}
 	if !s.ContentSchema.IsEmpty() && s.ContentSchema.ValueNode != nil {
 		sb.WriteString(s.ContentSchema.ValueNode.Tag)
 		for _, n := range s.ContentSchema.ValueNode.Content {

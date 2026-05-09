@@ -5184,6 +5184,7 @@ components:
 
 	changes := CompareSchemas(lp, rp)
 	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
 }
 
 func TestCompareSchemas_NewKeywords_ContentSchema(t *testing.T) {
@@ -5214,6 +5215,7 @@ components:
 
 	changes := CompareSchemas(lp, rp)
 	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
 }
 
 func TestCompareSchemas_NewKeywords_Vocabulary(t *testing.T) {
@@ -5236,7 +5238,7 @@ components:
     Pet:
       type: object
       $vocabulary:
-        https://example.com/vocab/core: true`
+        "https://example.com/vocab/core": true`
 
 	leftDoc, rightDoc := test_BuildDoc(left, right)
 	lp := leftDoc.Components.Value.FindSchema("Pet").Value
@@ -5244,4 +5246,5 @@ components:
 
 	changes := CompareSchemas(lp, rp)
 	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
 }

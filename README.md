@@ -147,3 +147,5 @@ Schema 'Error' has 2 properties
 ---
 
 Logo gopher is modified, originally from [egonelbre](https://github.com/egonelbre/gophers)
+
+<!-- Updated as part of the JSON Schema 2020-12 keyword support work -->

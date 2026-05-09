@@ -2756,7 +2756,7 @@ description: A schema without $id`
 
 func TestSchema_NewKeywords_Comment(t *testing.T) {
 	yml := `type: object
-$comment: a comment`
+$comment: hello world`
 
 	var idxNode yaml.Node
 	_ = yaml.Unmarshal([]byte(yml), &idxNode)
@@ -2768,7 +2768,7 @@ $comment: a comment`
 	err = sch.Build(context.Background(), idxNode.Content[0], nil)
 	assert.NoError(t, err)
 
-	assert.False(t, sch.Comment.IsEmpty())
+	assert.Equal(t, "hello world", sch.Comment.Value)
 }
 
 func TestSchema_NewKeywords_ContentSchema(t *testing.T) {
@@ -2790,9 +2790,9 @@ contentSchema:
 }
 
 func TestSchema_NewKeywords_Vocabulary(t *testing.T) {
-	yml := `$vocabulary:
-  https://example.com/vocab/core: true
-type: object`
+	yml := `type: object
+$vocabulary:
+  "https://example.com/vocab/core": true`
 
 	var idxNode yaml.Node
 	_ = yaml.Unmarshal([]byte(yml), &idxNode)
@@ -2805,4 +2805,5 @@ type: object`
 	assert.NoError(t, err)
 
 	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 1, sch.Vocabulary.Value.Len())
 }
