@@ -914,7 +914,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 				currentKey = node
 				continue
 			}
-			boolVal, _ := strconv.ParseBool(node.Value)
+			boolVal := node.Value == "true"
 			vocabularyMap.Set(low.KeyReference[string]{
 				KeyNode: currentKey,
 				Value:   currentKey.Value,

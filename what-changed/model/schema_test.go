@@ -5501,3 +5501,291 @@ components:
 	assert.NotNil(t, changes.ContentSchemaChanges)
 	assert.Equal(t, 1, changes.ContentSchemaChanges.TotalChanges())
 }
+
+// TestCompareSchemas_Vocabulary_Added tests $vocabulary entry addition detection
+func TestCompareSchemas_Vocabulary_Added(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+        "https://example.com/v/extra": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_Removed tests $vocabulary entry removal detection
+func TestCompareSchemas_Vocabulary_Removed(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+        "https://example.com/v/extra": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_Modified tests $vocabulary entry value modification detection
+func TestCompareSchemas_Vocabulary_Modified(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": false
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_NoChange tests identical $vocabulary produces no changes
+func TestCompareSchemas_Vocabulary_NoChange(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.Nil(t, changes)
+}
+
+// TestCompareSchemas_Vocabulary_AddedFromNil tests adding $vocabulary from nil
+func TestCompareSchemas_Vocabulary_AddedFromNil(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_RemovedToNil tests removing $vocabulary entirely
+func TestCompareSchemas_Vocabulary_RemovedToNil(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/core": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalChanges())
+}
+
+// TestCompareSchemas_Vocabulary_MultipleChanges tests multiple simultaneous vocabulary changes
+func TestCompareSchemas_Vocabulary_MultipleChanges(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/keep": true
+        "https://example.com/v/modify": true
+        "https://example.com/v/remove": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/v/keep": true
+        "https://example.com/v/modify": false
+        "https://example.com/v/add": true
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lp := leftDoc.Components.Value.FindSchema("Pet").Value
+	rp := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lp, rp)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 3, changes.TotalChanges())
+}

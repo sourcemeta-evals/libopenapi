@@ -2893,3 +2893,81 @@ contentSchema:
 	// Different contentSchema types should produce different hashes
 	assert.NotEqual(t, hash1, hash2)
 }
+
+// TestSchema_Vocabulary tests $vocabulary parsing
+func TestSchema_Vocabulary(t *testing.T) {
+	yml := `$vocabulary:
+  "https://json-schema.org/draft/2020-12/vocab/core": true
+  "https://json-schema.org/draft/2020-12/vocab/applicator": true
+  "https://json-schema.org/draft/2020-12/vocab/validation": false
+type: object`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, sch.Vocabulary.Value)
+	assert.Equal(t, 3, sch.Vocabulary.Value.Len())
+
+	for k, v := range sch.Vocabulary.Value.FromOldest() {
+		switch k.Value {
+		case "https://json-schema.org/draft/2020-12/vocab/core":
+			assert.True(t, v.Value)
+		case "https://json-schema.org/draft/2020-12/vocab/applicator":
+			assert.True(t, v.Value)
+		case "https://json-schema.org/draft/2020-12/vocab/validation":
+			assert.False(t, v.Value)
+		}
+	}
+}
+
+// TestSchema_Vocabulary_Empty tests that schemas without $vocabulary have nil Vocabulary
+func TestSchema_Vocabulary_Empty(t *testing.T) {
+	yml := `type: object
+description: A regular schema without $vocabulary`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Nil(t, sch.Vocabulary.Value)
+}
+
+// TestSchema_Hash_VocabularyDifferent tests that different vocabulary values produce different hashes
+func TestSchema_Hash_VocabularyDifferent(t *testing.T) {
+	yml1 := `type: object
+$vocabulary:
+  "https://example.com/vocab/core": true`
+
+	yml2 := `type: object
+$vocabulary:
+  "https://example.com/vocab/core": false`
+
+	var node1, node2 yaml.Node
+	_ = yaml.Unmarshal([]byte(yml1), &node1)
+	_ = yaml.Unmarshal([]byte(yml2), &node2)
+
+	var sch1, sch2 Schema
+	_ = low.BuildModel(node1.Content[0], &sch1)
+	_ = sch1.Build(context.Background(), node1.Content[0], nil)
+
+	_ = low.BuildModel(node2.Content[0], &sch2)
+	_ = sch2.Build(context.Background(), node2.Content[0], nil)
+
+	hash1 := sch1.Hash()
+	hash2 := sch2.Hash()
+
+	assert.NotEqual(t, hash1, hash2)
+}
