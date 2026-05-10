@@ -931,7 +931,6 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	// Using manual iteration instead of FindKeyNodeFullTop
 	for i := 0; i < len(root.Content)-1; i += 2 {
 		if root.Content[i].Value == "$comment" {
-			commentLabel := root.Content[i]
 			commentNode := root.Content[i+1]
 			s.Comment = low.NodeReference[string]{
 				Value: commentNode.Value, ValueNode: commentNode,
@@ -944,7 +943,6 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	// Using manual iteration instead of FindKeyNodeFullTop
 	for i := 0; i < len(root.Content)-1; i += 2 {
 		if root.Content[i].Value == "$vocabulary" {
-			vocabLabel := root.Content[i]
 			vocabNode := root.Content[i+1]
 			if utils.IsNodeMap(vocabNode) {
 				vocabularyMap := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
