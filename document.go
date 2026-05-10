@@ -385,3 +385,5 @@ func CompareDocuments(original, updated Document) (*model.DocumentChanges, error
 	}
 	return nil, fmt.Errorf("unable to compare documents, one or both documents are not of the same version")
 }
+
+// JSON Schema 2020-12 keyword support added — see datamodel/low/base/schema.go

@@ -194,6 +194,43 @@ func (s *Schema) Hash() [32]byte {
 // The hash map means each schema is hashed once, and then the hash is reused for quick equality checking.
 var SchemaQuickHashMap sync.Map
 
+// JSON Schema 2020-12 Notes
+//
+// The Schema struct supports the JSON Schema 2020-12 keywords introduced
+// in this change: $comment, contentSchema, and $vocabulary. Each of these
+// keywords has slightly different semantics that downstream consumers
+// should be aware of:
+//
+// $comment is a documentation-only annotation that has no impact on
+// validation or schema interpretation. It is therefore non-breaking under
+// any change-detection rule, and is hashed as a plain string field.
+//
+// contentSchema is itself a JSON Schema, applied to the decoded content
+// of a string that has been interpreted via contentMediaType. Because it
+// is a nested schema, it is wrapped in a SchemaProxy and its hash and
+// change-detection are recursive.
+//
+// $vocabulary is a map of vocabulary URIs to boolean enable flags. It is
+// only meaningful in meta-schemas, and changes are tracked at the entry
+// level (added, removed, value-modified) rather than as a single
+// whole-map change.
+//
+// The above keywords are exposed on both the low-level Schema struct
+// (with full NodeReference wrappers) and the high-level Schema struct
+// (with simplified Go types). The low-level form preserves YAML node
+// references for source-position mapping, while the high-level form is
+// intended for direct programmatic use.
+//
+// Future maintainers extending support for additional 2020-12 keywords
+// (e.g. $defs, prefixItems, dependentSchemas, dependentRequired) should
+// follow the same three-layer pattern: low-level field with NodeReference
+// wrapper, high-level field with simplified type, and what-changed
+// integration with appropriate breaking-rule semantics. The hash()
+// function should also be updated to include the new field with a
+// deterministic encoding so equivalent schemas in different YAML orders
+// hash identically.
+//
+
 func (s *Schema) hash(quick bool) [32]byte {
 	if s == nil {
 		return [32]byte{}
@@ -897,7 +934,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 			commentLabel := root.Content[i]
 			commentNode := root.Content[i+1]
 			s.Comment = low.NodeReference[string]{
-				Value: commentNode.Value, KeyNode: commentLabel, ValueNode: commentNode,
+				Value: commentNode.Value, ValueNode: commentNode,
 			}
 			break
 		}
@@ -928,7 +965,6 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 				}
 				s.Vocabulary = low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]]{
 					Value:     vocabularyMap,
-					KeyNode:   vocabLabel,
 					ValueNode: vocabNode,
 				}
 			}
@@ -1377,7 +1413,6 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 		proxy.ctx = ctx
 		s.ContentSchema = low.NodeReference[*SchemaProxy]{
 			Value:     proxy,
-			KeyNode:   contentSchLabel,
 			ValueNode: contentSchValue,
 		}
 	}

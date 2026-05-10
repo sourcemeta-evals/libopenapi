@@ -340,9 +340,7 @@ func NewSchema(schema *base.Schema) *Schema {
 	if !schema.DynamicRef.IsEmpty() {
 		s.DynamicRef = schema.DynamicRef.Value
 	}
-	if !schema.Comment.IsEmpty() {
-		s.Comment = schema.Comment.Value
-	}
+	s.Comment = schema.Comment.Value
 	if !schema.ContentSchema.IsEmpty() {
 		s.ContentSchema = NewSchemaProxy(&lowmodel.NodeReference[*base.SchemaProxy]{
 			ValueNode: schema.ContentSchema.ValueNode,
