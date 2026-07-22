@@ -46,6 +46,7 @@ func TestComparePaths_v2(t *testing.T) {
 }
 
 func TestComparePaths_v2_ModifyOp(t *testing.T) {
+	low.ClearHashCache()
 	left := `/fresh/cake:
   get:
     description: a thing?
