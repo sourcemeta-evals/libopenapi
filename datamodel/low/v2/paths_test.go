@@ -55,6 +55,7 @@ func TestPaths_FindPathAndKey(t *testing.T) {
 }
 
 func TestPaths_Hash(t *testing.T) {
+	low.ClearHashCache()
 	yml := `/data/dog:
   get:
     description: does data kinda, ish.
