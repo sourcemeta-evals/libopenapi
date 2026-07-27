@@ -520,3 +520,64 @@ itemEncoding:
 	assert.Equal(t, 1, changes2.TotalBreakingChanges(),
 		"flipped itemEncoding rules should classify the addition as breaking and the removal as non-breaking")
 }
+
+// TestQueryAddedChangePayload verifies that when a Query operation is added
+// (present on the right, absent on the left), the resulting Change record
+// carries the right-hand Query operation as its NewObject rather than the
+// left-hand nil value. This guards against a common wiring bug where
+// ComparePathItems passes `lPath.Query.Value` (nil) into CreateChange instead
+// of `rPath.Query.Value`, which produces a change record with a nil payload
+// that downstream consumers cannot introspect.
+func TestQueryAddedChangePayload(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `get:
+  summary: Get resources`
+
+	right := `get:
+  summary: Get resources
+query:
+  summary: Query resources
+  operationId: queryResources`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	_ = low.BuildModel(&lNode, &lPath)
+	_ = low.BuildModel(&rNode, &rPath)
+
+	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+
+	// Locate the Query PropertyAdded change and assert it carries a
+	// non-nil right-hand payload as NewObject.
+	var queryAdded *Change
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property == v3.QueryLabel && ch.ChangeType == PropertyAdded {
+			queryAdded = ch
+			break
+		}
+	}
+	assert.NotNil(t, queryAdded, "expected a PropertyAdded change for v3.QueryLabel")
+	if queryAdded != nil {
+		assert.NotNil(t, queryAdded.NewObject,
+			"the added-Query change must carry the right-hand Query operation as NewObject, not nil")
+		assert.Nil(t, queryAdded.OriginalObject,
+			"the added-Query change should have no OriginalObject (left side had no query)")
+	}
+}
