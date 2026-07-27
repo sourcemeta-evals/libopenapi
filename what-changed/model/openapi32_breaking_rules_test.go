@@ -581,3 +581,69 @@ query:
 			"the added-Query change should have no OriginalObject (left side had no query)")
 	}
 }
+
+// TestAdditionalOperationsReorderedMatching guards against an index bug in
+// ComparePathItems where the additionalOperations matching loop looked up the
+// left operation with `lKeys[j]` (the right-side index) instead of `lKeys[i]`
+// (the left-side index). When left and right contain the same operation name
+// in different positions, the buggy path either panics (right slice longer
+// than left, `lKeys[j]` out of range) or compares the wrong left operation
+// against the matched right operation, reporting spurious modifications.
+func TestAdditionalOperationsReorderedMatching(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// Two additionalOperations on each side. The name SHARED appears in both,
+	// but at different positions: left has (SHARED, ONLY_LEFT), right has
+	// (ONLY_RIGHT, SHARED). SHARED carries an identical operation body on
+	// both sides so a correct implementation reports zero changes for it and
+	// only surfaces the removal of ONLY_LEFT and the addition of ONLY_RIGHT.
+	left := `additionalOperations:
+  SHARED:
+    summary: Shared operation
+    operationId: sharedOp
+  ONLY_LEFT:
+    summary: Only-left operation
+    operationId: onlyLeftOp`
+
+	right := `additionalOperations:
+  ONLY_RIGHT:
+    summary: Only-right operation
+    operationId: onlyRightOp
+  SHARED:
+    summary: Shared operation
+    operationId: sharedOp`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	_ = low.BuildModel(&lNode, &lPath)
+	_ = low.BuildModel(&rNode, &rPath)
+
+	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	var changes *PathItemChanges
+	assert.NotPanics(t, func() {
+		changes = ComparePathItems(&lPath, &rPath)
+	}, "ComparePathItems must not panic when additionalOperations keys appear in different positions on each side")
+
+	assert.NotNil(t, changes)
+	// Expected: ONLY_LEFT removed + ONLY_RIGHT added. SHARED is unchanged.
+	// The buggy implementation additionally reports a spurious SHARED
+	// modification (or panics) because it compares the wrong left operation
+	// against the matched right one, inflating the change count above two.
+	assert.Equal(t, 2, changes.TotalChanges(),
+		"expected exactly two changes (ONLY_LEFT removed, ONLY_RIGHT added); a higher count indicates the reordering-matching bug is still present")
+}

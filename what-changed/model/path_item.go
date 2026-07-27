@@ -644,7 +644,7 @@ func compareOpenAPIPathItem(lPath, rPath *v3.PathItem, changes *[]*Change, pc *P
 					found = true
 					// compare the two operations
 					totalOps++
-					go checkOperation(lPath.AdditionalOperations.Value.GetOrZero(lKeys[j]).Value,
+					go checkOperation(lPath.AdditionalOperations.Value.GetOrZero(lKeys[i]).Value,
 						rPath.AdditionalOperations.Value.GetOrZero(rKeys[j]).Value, opChan, lKeys[i].Value)
 					break
 				}
