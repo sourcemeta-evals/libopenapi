@@ -454,3 +454,69 @@ func TestBreakingHelperFunctions_OpenAPI32(t *testing.T) {
 	assert.False(t, BreakingModified(CompSecurityScheme, PropOAuth2MetadataUrl))
 	assert.False(t, BreakingRemoved(CompSecurityScheme, PropOAuth2MetadataUrl))
 }
+
+// TestItemEncodingConfigurableBreakingRules verifies that CompareMediaTypes honours
+// SetActiveBreakingRulesConfig for MediaType.ItemEncoding on both additions and
+// removals, rather than delegating to the generic map helper which hard-codes
+// additions as non-breaking and removals as breaking.
+func TestItemEncodingConfigurableBreakingRules(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// left has one itemEncoding entry, right has a different one — so the
+	// diff contains both an addition (right's new entry) and a removal
+	// (left's dropped entry).
+	left := `schema:
+  type: array
+itemEncoding:
+  removed-entry:
+    contentType: application/json`
+
+	right := `schema:
+  type: array
+itemEncoding:
+  added-entry:
+    contentType: application/xml`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	_ = low.BuildModel(&lNode, &lMT)
+	_ = low.BuildModel(&rNode, &rMT)
+
+	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: only the removal is breaking (Added=false, Removed=true).
+	changes := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalBreakingChanges(),
+		"default itemEncoding rules should classify the removal as breaking and the addition as non-breaking")
+
+	// Flip the config: additions breaking, removals non-breaking.
+	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+		MediaType: &MediaTypeRules{
+			ItemEncoding: &BreakingChangeRule{
+				Added:    boolPtr(true),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(false),
+			},
+		},
+	})
+
+	changes2 := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(),
+		"flipped itemEncoding rules should classify the addition as breaking and the removal as non-breaking")
+}

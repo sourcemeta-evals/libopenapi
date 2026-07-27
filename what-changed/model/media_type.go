@@ -161,8 +161,54 @@ func CompareMediaTypes(l, r *v3.MediaType) *MediaTypeChanges {
 	}
 
 	// itemEncoding
-	mc.ItemEncodingChanges = CheckMapForChanges(l.ItemEncoding.Value, r.ItemEncoding.Value,
-		&changes, v3.ItemEncodingLabel, CompareEncoding)
+	// Handle map comparison manually so add/remove breaking flags consult
+	// the active breaking-rule config (`MediaType.ItemEncoding`) rather than
+	// the generic map helper's hard-coded true/false values.
+	mc.ItemEncodingChanges = make(map[string]*EncodingChanges)
+	lItemEncoding := make(map[string]low.ValueReference[*v3.Encoding])
+	rItemEncoding := make(map[string]low.ValueReference[*v3.Encoding])
+	if l.ItemEncoding.Value != nil {
+		for k, v := range l.ItemEncoding.Value.FromOldest() {
+			lItemEncoding[k.Value] = v
+		}
+	}
+	if r.ItemEncoding.Value != nil {
+		for k, v := range r.ItemEncoding.Value.FromOldest() {
+			rItemEncoding[k.Value] = v
+		}
+	}
+	for k, lVal := range lItemEncoding {
+		rVal, exists := rItemEncoding[k]
+		if !exists {
+			node := lVal.GetValueNode()
+			if node != nil && node.Value == "" {
+				node.Value = k
+			}
+			CreateChange(&changes, ObjectRemoved, v3.ItemEncodingLabel,
+				node, nil, BreakingRemoved(CompMediaType, PropItemEncoding),
+				lVal.GetValue(), nil)
+			continue
+		}
+		if low.GenerateHashString(lVal.Value) == low.GenerateHashString(rVal.Value) {
+			continue
+		}
+		ch := CompareEncoding(lVal.Value, rVal.Value)
+		if ch != nil {
+			mc.ItemEncodingChanges[k] = ch
+		}
+	}
+	for k, rVal := range rItemEncoding {
+		if _, exists := lItemEncoding[k]; exists {
+			continue
+		}
+		node := rVal.GetValueNode()
+		if node != nil && node.Value == "" {
+			node.Value = k
+		}
+		CreateChange(&changes, ObjectAdded, v3.ItemEncodingLabel,
+			nil, node, BreakingAdded(CompMediaType, PropItemEncoding),
+			nil, rVal.GetValue())
+	}
 
 	mc.ExtensionChanges = CompareExtensions(l.Extensions, r.Extensions)
 	mc.PropertyChanges = NewPropertyChanges(changes)
