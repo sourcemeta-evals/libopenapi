@@ -4467,11 +4467,11 @@ components:
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.NotNil(t, changes)
-	
+
 	// Test GetAllChanges includes DependentRequired changes
 	allChanges := changes.GetAllChanges()
 	assert.Greater(t, len(allChanges), 0)
-	
+
 	// Verify at least one DependentRequired change is included
 	foundDepReq := false
 	for _, change := range allChanges {
@@ -4517,7 +4517,7 @@ components:
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.NotNil(t, changes)
-	
+
 	// Test TotalBreakingChanges includes DependentRequired breaking changes
 	totalBreaking := changes.TotalBreakingChanges()
 	assert.Greater(t, totalBreaking, 0)
@@ -4530,15 +4530,15 @@ func TestSlicesEqual_AllCases(t *testing.T) {
 	a := []string{"name", "email"}
 	b := []string{"name", "email"}
 	assert.True(t, slicesEqual(a, b))
-	
+
 	// Test different lengths
 	c := []string{"name"}
 	assert.False(t, slicesEqual(a, c))
-	
+
 	// Test different content
 	d := []string{"name", "phone"}
 	assert.False(t, slicesEqual(a, d))
-	
+
 	// Test empty slices
 	assert.True(t, slicesEqual([]string{}, []string{}))
 }
@@ -4549,14 +4549,14 @@ func TestGetNodeForProperty_EdgeCases(t *testing.T) {
 	// Test with nil map (line 1778-1779)
 	node := getNodeForProperty(nil, "test")
 	assert.Nil(t, node)
-	
+
 	// Test with property not found (line 1785)
 	depMap := orderedmap.New[low.KeyReference[string], low.ValueReference[[]string]]()
 	depMap.Set(low.KeyReference[string]{Value: "billing"}, low.ValueReference[[]string]{Value: []string{"name"}})
-	
+
 	node = getNodeForProperty(depMap, "nonexistent")
 	assert.Nil(t, node)
-	
+
 	// Test with property found (should return the node)
 	node = getNodeForProperty(depMap, "billing")
 	// Note: In this test case the node will be nil since we didn't set ValueNode,
@@ -4578,7 +4578,7 @@ components:
 
 	leftDoc, _ := test_BuildDoc(spec, spec)
 	lSchemaProxy := leftDoc.Components.Value.FindSchema("Something").Value
-	
+
 	// Access the low-level DependentRequired to test with real nodes
 	lowSchema := lSchemaProxy.Schema()
 	if lowSchema.DependentRequired.Value != nil {
@@ -4625,11 +4625,11 @@ components:
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.NotNil(t, changes)
 	assert.Greater(t, len(changes.DependentRequiredChanges), 0)
-	
+
 	// This specifically calls GetPropertyChanges() which contains lines 73-74
 	propertyChanges := changes.GetPropertyChanges()
 	assert.Greater(t, len(propertyChanges), 0)
-	
+
 	// Verify that DependentRequired changes are included in property changes
 	foundDepReq := false
 	for _, change := range propertyChanges {
@@ -5812,4 +5812,76 @@ components:
 	// Should have 3 changes: core modified, validation removed, applicator added
 	assert.Equal(t, 3, changes.TotalChanges())
 	assert.Len(t, changes.VocabularyChanges, 3)
+}
+
+// TestGetAllChanges_IncludesContentSchemaAndVocabulary verifies that
+// SchemaChanges.GetAllChanges() surfaces both recursive contentSchema
+// changes and every $vocabulary entry change alongside the other change
+// containers, per the task contract's aggregate-accessor requirement.
+func TestGetAllChanges_IncludesContentSchemaAndVocabulary(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object
+      $vocabulary:
+        https://example.com/vocab/keep: true
+        https://example.com/vocab/toggle: true
+        https://example.com/vocab/removed: false`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array
+      $vocabulary:
+        https://example.com/vocab/keep: true
+        https://example.com/vocab/toggle: false
+        https://example.com/vocab/added: true`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+
+	// Container-level sanity: the new containers picked up their changes.
+	assert.NotNil(t, changes.ContentSchemaChanges,
+		"contentSchema change must be captured in ContentSchemaChanges")
+	assert.GreaterOrEqual(t, changes.ContentSchemaChanges.TotalChanges(), 1,
+		"nested contentSchema type change must contribute to ContentSchemaChanges")
+	assert.Len(t, changes.VocabularyChanges, 3,
+		"three $vocabulary entry changes expected: one added, one removed, one modified")
+
+	// Aggregate accessor must surface every change from both new containers.
+	all := changes.GetAllChanges()
+	for _, c := range changes.ContentSchemaChanges.GetAllChanges() {
+		assert.Contains(t, all, c,
+			"GetAllChanges must include recursive contentSchema changes")
+	}
+	for _, c := range changes.VocabularyChanges {
+		assert.Contains(t, all, c,
+			"GetAllChanges must include every $vocabulary entry change")
+	}
 }
