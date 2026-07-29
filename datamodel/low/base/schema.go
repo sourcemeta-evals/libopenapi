@@ -914,8 +914,14 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 				currentKey = node
 				continue
 			}
-			// use strconv.ParseBool for robust boolean parsing (handles "true", "false", "1", "0", etc.)
-			boolVal, _ := strconv.ParseBool(node.Value)
+			// $vocabulary values must be canonical JSON boolean scalars (unquoted
+			// `true` or `false`). Non-boolean scalars (numbers, strings, quoted
+			// booleans) and alternative YAML boolean spellings like `TRUE`, `yes`,
+			// `on` are silently treated as false per the task contract.
+			var boolVal bool
+			if utils.IsNodeBoolValue(node) && node.Value == "true" {
+				boolVal = true
+			}
 			vocabularyMap.Set(low.KeyReference[string]{
 				KeyNode: currentKey,
 				Value:   currentKey.Value,

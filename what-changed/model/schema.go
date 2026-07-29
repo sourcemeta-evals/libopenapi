@@ -188,6 +188,12 @@ func (s *SchemaChanges) GetAllChanges() []*Change {
 	if s.ExtensionChanges != nil {
 		changes = append(changes, s.ExtensionChanges.GetAllChanges()...)
 	}
+	if s.ContentSchemaChanges != nil {
+		changes = append(changes, s.ContentSchemaChanges.GetAllChanges()...)
+	}
+	if len(s.VocabularyChanges) > 0 {
+		changes = append(changes, s.VocabularyChanges...)
+	}
 	return changes
 }
 
@@ -2071,7 +2077,7 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 			c := &Change{
 				Property:       base.VocabularyLabel,
 				ChangeType:     PropertyRemoved,
-				Original:       uri,
+				Original:       fmt.Sprintf("%s=%v", uri, lVal),
 				Breaking:       BreakingRemoved(CompSchema, PropVocabulary),
 				OriginalObject: lVocabMap,
 			}
@@ -2083,13 +2089,13 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 	}
 
 	// check for added vocabularies
-	for uri := range rVocabMap {
+	for uri, rVal := range rVocabMap {
 		if _, ok := lVocabMap[uri]; !ok {
 			// vocabulary was added
 			c := &Change{
 				Property:   base.VocabularyLabel,
 				ChangeType: PropertyAdded,
-				New:        uri,
+				New:        fmt.Sprintf("%s=%v", uri, rVal),
 				Breaking:   BreakingAdded(CompSchema, PropVocabulary),
 				NewObject:  rVocabMap,
 			}

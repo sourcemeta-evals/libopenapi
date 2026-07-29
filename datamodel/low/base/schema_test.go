@@ -2914,9 +2914,11 @@ $comment: Comment 2`
 	assert.NotEqual(t, hash1, hash2)
 }
 
-// TestSchema_Vocabulary_AlternativeBooleanFormats tests that strconv.ParseBool handles
-// various boolean representations correctly (1, 0, t, f, T, F, TRUE, FALSE, etc.)
-func TestSchema_Vocabulary_AlternativeBooleanFormats(t *testing.T) {
+// TestSchema_Vocabulary_NonBooleanScalarsDefaultToFalse tests that $vocabulary
+// map values which are not actual YAML boolean scalars (numbers, unquoted
+// alternative truthy tokens, etc.) silently default to false per the task
+// contract, rather than being permissively coerced via strconv.ParseBool.
+func TestSchema_Vocabulary_NonBooleanScalarsDefaultToFalse(t *testing.T) {
 	yml := `type: object
 $vocabulary:
   "https://example.com/vocab/one": 1
@@ -2939,22 +2941,9 @@ $vocabulary:
 	assert.NotNil(t, sch.Vocabulary.Value)
 	assert.Equal(t, 6, sch.Vocabulary.Value.Len())
 
-	// Check specific vocabulary entries with alternative boolean formats
+	// None of the above are YAML boolean scalars, so every entry must default to false.
 	for k, v := range sch.Vocabulary.Value.FromOldest() {
-		switch k.Value {
-		case "https://example.com/vocab/one":
-			assert.True(t, v.Value, "1 should parse as true")
-		case "https://example.com/vocab/zero":
-			assert.False(t, v.Value, "0 should parse as false")
-		case "https://example.com/vocab/t":
-			assert.True(t, v.Value, "t should parse as true")
-		case "https://example.com/vocab/f":
-			assert.False(t, v.Value, "f should parse as false")
-		case "https://example.com/vocab/TRUE":
-			assert.True(t, v.Value, "TRUE should parse as true")
-		case "https://example.com/vocab/FALSE":
-			assert.False(t, v.Value, "FALSE should parse as false")
-		}
+		assert.False(t, v.Value, "%s should default to false because it is not a YAML boolean scalar", k.Value)
 	}
 }
 
