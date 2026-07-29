@@ -493,24 +493,24 @@ func TestBreakingHelperFunctions_OpenAPI32(t *testing.T) {
 	}()
 
 	// Test Query
-	assert.False(t, BreakingAdded(CompPathItem, PropQuery))
-	assert.False(t, BreakingModified(CompPathItem, PropQuery))
-	assert.True(t, BreakingRemoved(CompPathItem, PropQuery))
+	assert.False(t, BreakingAdded(CompPathItem, "query"))
+	assert.False(t, BreakingModified(CompPathItem, "query"))
+	assert.True(t, BreakingRemoved(CompPathItem, "query"))
 
 	// Test AdditionalOperations
-	assert.False(t, BreakingAdded(CompPathItem, PropAdditionalOperations))
-	assert.False(t, BreakingModified(CompPathItem, PropAdditionalOperations))
-	assert.True(t, BreakingRemoved(CompPathItem, PropAdditionalOperations))
+	assert.False(t, BreakingAdded(CompPathItem, "additionalOperations"))
+	assert.False(t, BreakingModified(CompPathItem, "additionalOperations"))
+	assert.True(t, BreakingRemoved(CompPathItem, "additionalOperations"))
 
 	// Test ItemSchema
-	assert.True(t, BreakingAdded(CompMediaType, PropItemSchema))
-	assert.False(t, BreakingModified(CompMediaType, PropItemSchema))
-	assert.True(t, BreakingRemoved(CompMediaType, PropItemSchema))
+	assert.True(t, BreakingAdded(CompMediaType, "itemSchema"))
+	assert.False(t, BreakingModified(CompMediaType, "itemSchema"))
+	assert.True(t, BreakingRemoved(CompMediaType, "itemSchema"))
 
 	// Test ItemEncoding
-	assert.False(t, BreakingAdded(CompMediaType, PropItemEncoding))
-	assert.False(t, BreakingModified(CompMediaType, PropItemEncoding))
-	assert.True(t, BreakingRemoved(CompMediaType, PropItemEncoding))
+	assert.False(t, BreakingAdded(CompMediaType, "itemEncoding"))
+	assert.False(t, BreakingModified(CompMediaType, "itemEncoding"))
+	assert.True(t, BreakingRemoved(CompMediaType, "itemEncoding"))
 
 	// Test OAuth2MetadataUrl
 	assert.False(t, BreakingAdded(CompSecurityScheme, PropOAuth2MetadataUrl))
