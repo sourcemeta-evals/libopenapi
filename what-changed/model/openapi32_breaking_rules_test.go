@@ -189,6 +189,69 @@ func TestAdditionalOperationsConfigurableBreakingRules(t *testing.T) {
 	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, removing additionalOperations should not be breaking")
 }
 
+// TestAdditionalOperationsAddedConfigurable verifies that ComparePathItems honours
+// SetActiveBreakingRulesConfig for PathItem.AdditionalOperations additions. The
+// scenario is deliberately isolated to an addition (right introduces the map,
+// left has none) so that flipping Added to true changes the total breaking-change
+// count, discriminating a correct BreakingAdded(CompPathItem, PropAdditionalOperations)
+// wiring from an implementation that hard-codes the added flag to false.
+func TestAdditionalOperationsAddedConfigurable(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// left has no additionalOperations, right introduces one.
+	left := `get:
+  summary: Get resources`
+
+	right := `get:
+  summary: Get resources
+additionalOperations:
+  LINK:
+    summary: Link operation`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	_ = low.BuildModel(&lNode, &lPath)
+	_ = low.BuildModel(&rNode, &rPath)
+
+	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: adding additionalOperations should not be breaking.
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 0, changes.TotalBreakingChanges(),
+		"default additionalOperations rules should classify the addition as non-breaking")
+
+	// Override Added=true: the addition should now be breaking.
+	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+		PathItem: &PathItemRules{
+			AdditionalOperations: &BreakingChangeRule{
+				Added:    boolPtr(true),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(true),
+			},
+		},
+	})
+
+	changes2 := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(),
+		"overridden additionalOperations rules should classify the addition as breaking")
+}
+
 // TestItemSchemaConfigurableBreakingRules tests that the ItemSchema field in MediaType
 // has configurable breaking change behavior.
 func TestItemSchemaConfigurableBreakingRules(t *testing.T) {
@@ -456,9 +519,12 @@ func TestBreakingHelperFunctions_OpenAPI32(t *testing.T) {
 }
 
 // TestItemEncodingConfigurableBreakingRules verifies that CompareMediaTypes honours
-// SetActiveBreakingRulesConfig for MediaType.ItemEncoding on both additions and
-// removals, rather than delegating to the generic map helper which hard-codes
-// additions as non-breaking and removals as breaking.
+// SetActiveBreakingRulesConfig for MediaType.ItemEncoding on removal-only diffs.
+// The scenario is deliberately isolated to a removal so that flipping Removed to
+// false changes the total breaking-change count, discriminating a correct
+// BreakingRemoved(CompMediaType, PropItemEncoding) wiring from the old generic
+// map-helper behavior which hard-codes removals as breaking regardless of the
+// active config.
 func TestItemEncodingConfigurableBreakingRules(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
@@ -468,14 +534,73 @@ func TestItemEncodingConfigurableBreakingRules(t *testing.T) {
 		ResetDefaultBreakingRules()
 	}()
 
-	// left has one itemEncoding entry, right has a different one — so the
-	// diff contains both an addition (right's new entry) and a removal
-	// (left's dropped entry).
+	// left has one itemEncoding entry, right has none — removal only.
 	left := `schema:
   type: array
 itemEncoding:
   removed-entry:
     contentType: application/json`
+
+	right := `schema:
+  type: array`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	_ = low.BuildModel(&lNode, &lMT)
+	_ = low.BuildModel(&rNode, &rMT)
+
+	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: removing an itemEncoding entry should be breaking.
+	changes := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalBreakingChanges(),
+		"default itemEncoding rules should classify the removal as breaking")
+
+	// Override Removed=false: the removal should no longer be breaking.
+	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+		MediaType: &MediaTypeRules{
+			ItemEncoding: &BreakingChangeRule{
+				Added:    boolPtr(false),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(false),
+			},
+		},
+	})
+
+	changes2 := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 0, changes2.TotalBreakingChanges(),
+		"overridden itemEncoding rules should classify the removal as non-breaking")
+}
+
+// TestItemEncodingAddedConfigurable verifies that CompareMediaTypes honours
+// SetActiveBreakingRulesConfig for MediaType.ItemEncoding on addition-only diffs.
+// The scenario is deliberately isolated to an addition so that flipping Added to
+// true changes the total breaking-change count, discriminating a correct
+// BreakingAdded(CompMediaType, PropItemEncoding) wiring from the old generic
+// map-helper behavior which hard-codes additions as non-breaking regardless of
+// the active config.
+func TestItemEncodingAddedConfigurable(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// left has no itemEncoding, right has one entry — addition only.
+	left := `schema:
+  type: array`
 
 	right := `schema:
   type: array
@@ -498,19 +623,19 @@ itemEncoding:
 	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
 	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
 
-	// Default behavior: only the removal is breaking (Added=false, Removed=true).
+	// Default behavior: adding an itemEncoding entry should not be breaking.
 	changes := CompareMediaTypes(&lMT, &rMT)
 	assert.NotNil(t, changes)
-	assert.Equal(t, 1, changes.TotalBreakingChanges(),
-		"default itemEncoding rules should classify the removal as breaking and the addition as non-breaking")
+	assert.Equal(t, 0, changes.TotalBreakingChanges(),
+		"default itemEncoding rules should classify the addition as non-breaking")
 
-	// Flip the config: additions breaking, removals non-breaking.
+	// Override Added=true: the addition should now be breaking.
 	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
 		MediaType: &MediaTypeRules{
 			ItemEncoding: &BreakingChangeRule{
 				Added:    boolPtr(true),
 				Modified: boolPtr(false),
-				Removed:  boolPtr(false),
+				Removed:  boolPtr(true),
 			},
 		},
 	})
@@ -518,7 +643,7 @@ itemEncoding:
 	changes2 := CompareMediaTypes(&lMT, &rMT)
 	assert.NotNil(t, changes2)
 	assert.Equal(t, 1, changes2.TotalBreakingChanges(),
-		"flipped itemEncoding rules should classify the addition as breaking and the removal as non-breaking")
+		"overridden itemEncoding rules should classify the addition as breaking")
 }
 
 // TestQueryAddedChangePayload verifies that when a Query operation is added
