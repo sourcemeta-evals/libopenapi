@@ -323,3 +323,41 @@ $vocabulary:
 	assert.Equal(t, hash1, hash2,
 		"equivalent $vocabulary entries in different source order must hash equally")
 }
+
+// TestEvalonGolden_Schema_Vocabulary_StrTaggedTrueDefaultsToFalse asserts that
+// an explicit YAML !!str-tagged "true" scalar in a $vocabulary map silently
+// parses as `false` per the strict-YAML boolean contract, while a plain
+// canonical unquoted `true` in the same map still parses as `true`.
+// Implementations that inspect scalar kind, style, or text without checking
+// the YAML tag (e.g. via utils.IsNodeBoolValue which requires the !!bool tag)
+// incorrectly treat !!str true as boolean true and fail this test.
+func TestEvalonGolden_Schema_Vocabulary_StrTaggedTrueDefaultsToFalse(t *testing.T) {
+	yml := `type: object
+$vocabulary:
+  "https://example.com/vocab/canonical": true
+  "https://example.com/vocab/str-tagged": !!str true`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err, "BuildModel must succeed on the $vocabulary fixture")
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err, "Schema.Build must succeed on the $vocabulary fixture and not error on a non-boolean scalar")
+
+	assert.NotNil(t, sch.Vocabulary.Value, "Vocabulary must be populated")
+	assert.Equal(t, 2, sch.Vocabulary.Value.Len())
+
+	for k, v := range sch.Vocabulary.Value.FromOldest() {
+		switch k.Value {
+		case "https://example.com/vocab/canonical":
+			assert.True(t, v.Value,
+				"a plain canonical unquoted true entry must remain true")
+		case "https://example.com/vocab/str-tagged":
+			assert.False(t, v.Value,
+				"an explicit !!str-tagged 'true' scalar must silently default to false; implementations that miss the tag check and accept the string as boolean fail here")
+		}
+	}
+}

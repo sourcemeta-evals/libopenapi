@@ -782,45 +782,93 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 		return m
 	}
 
-	// leftEntriesA and leftEntriesB carry the SAME URI/value set but in
-	// DIFFERENT insertion orders. Same for rightEntriesA and rightEntriesB.
-	leftEntriesA := [][2]string{
-		{"https://example.com/vocab/c", "true"},
-		{"https://example.com/vocab/shared", "true"},
-		{"https://example.com/vocab/a", "false"},
+	// Canonical emitted sequence for these inputs. The reference comparator
+	// walks left URIs in sorted order (emitting Modified for shared keys with
+	// differing values and PropertyRemoved for left-only keys), then walks
+	// right URIs in sorted order (emitting PropertyAdded for right-only keys).
+	// This yields the following exact expected record sequence:
+	//   1. a=false -> PropertyRemoved (left-only)
+	//   2. c=true  -> PropertyRemoved (left-only)
+	//   3. shared  -> Modified (true -> false)
+	//   4. b=true  -> PropertyAdded (right-only)
+	//   5. d=false -> PropertyAdded (right-only)
+	type expectedRecord struct {
+		changeType int
+		original   string
+		new        string
 	}
-	leftEntriesB := [][2]string{
-		{"https://example.com/vocab/a", "false"},
-		{"https://example.com/vocab/c", "true"},
-		{"https://example.com/vocab/shared", "true"},
-	}
-	rightEntriesA := [][2]string{
-		{"https://example.com/vocab/shared", "false"},
-		{"https://example.com/vocab/b", "true"},
-		{"https://example.com/vocab/d", "false"},
-	}
-	rightEntriesB := [][2]string{
-		{"https://example.com/vocab/d", "false"},
-		{"https://example.com/vocab/shared", "false"},
-		{"https://example.com/vocab/b", "true"},
+	expected := []expectedRecord{
+		{changeType: PropertyRemoved, original: "https://example.com/vocab/a=false"},
+		{changeType: PropertyRemoved, original: "https://example.com/vocab/c=true"},
+		{changeType: Modified, original: "https://example.com/vocab/shared=true", new: "https://example.com/vocab/shared=false"},
+		{changeType: PropertyAdded, new: "https://example.com/vocab/b=true"},
+		{changeType: PropertyAdded, new: "https://example.com/vocab/d=false"},
 	}
 
-	pairA := checkVocabularyChanges(buildVocab(leftEntriesA), buildVocab(rightEntriesA))
-	pairB := checkVocabularyChanges(buildVocab(leftEntriesB), buildVocab(rightEntriesB))
+	// Every combination of left and right insertion orders must produce the
+	// SAME record sequence. If the comparator preserved source insertion order
+	// or ranged a native Go map, some permutations would drift from the
+	// canonical sequence.
+	leftPermutations := [][][2]string{
+		{
+			{"https://example.com/vocab/c", "true"},
+			{"https://example.com/vocab/shared", "true"},
+			{"https://example.com/vocab/a", "false"},
+		},
+		{
+			{"https://example.com/vocab/a", "false"},
+			{"https://example.com/vocab/shared", "true"},
+			{"https://example.com/vocab/c", "true"},
+		},
+		{
+			{"https://example.com/vocab/shared", "true"},
+			{"https://example.com/vocab/c", "true"},
+			{"https://example.com/vocab/a", "false"},
+		},
+	}
+	rightPermutations := [][][2]string{
+		{
+			{"https://example.com/vocab/shared", "false"},
+			{"https://example.com/vocab/b", "true"},
+			{"https://example.com/vocab/d", "false"},
+		},
+		{
+			{"https://example.com/vocab/d", "false"},
+			{"https://example.com/vocab/shared", "false"},
+			{"https://example.com/vocab/b", "true"},
+		},
+		{
+			{"https://example.com/vocab/b", "true"},
+			{"https://example.com/vocab/shared", "false"},
+			{"https://example.com/vocab/d", "false"},
+		},
+	}
 
-	assert.NotEmpty(t, pairA, "expected at least one vocabulary change record")
-	assert.Equal(t, len(pairA), len(pairB),
-		"record count must be independent of source insertion order")
+	for leftIndex, leftEntries := range leftPermutations {
+		for rightIndex, rightEntries := range rightPermutations {
+			records := checkVocabularyChanges(buildVocab(leftEntries), buildVocab(rightEntries))
 
-	for i := range pairA {
-		assert.Equal(t, pairA[i].Property, pairB[i].Property,
-			"record[%d] Property must be independent of source insertion order", i)
-		assert.Equal(t, pairA[i].ChangeType, pairB[i].ChangeType,
-			"record[%d] ChangeType must be independent of source insertion order", i)
-		assert.Equal(t, pairA[i].Original, pairB[i].Original,
-			"record[%d] Original payload must be independent of source insertion order", i)
-		assert.Equal(t, pairA[i].New, pairB[i].New,
-			"record[%d] New payload must be independent of source insertion order", i)
+			assert.Equal(t, len(expected), len(records),
+				"left permutation %d, right permutation %d: expected %d records, got %d",
+				leftIndex, rightIndex, len(expected), len(records))
+			if len(records) != len(expected) {
+				continue
+			}
+			for i, want := range expected {
+				assert.Equal(t, base.VocabularyLabel, records[i].Property,
+					"left permutation %d, right permutation %d, record[%d] Property must be $vocabulary",
+					leftIndex, rightIndex, i)
+				assert.Equal(t, want.changeType, records[i].ChangeType,
+					"left permutation %d, right permutation %d, record[%d] ChangeType",
+					leftIndex, rightIndex, i)
+				assert.Equal(t, want.original, records[i].Original,
+					"left permutation %d, right permutation %d, record[%d] Original payload",
+					leftIndex, rightIndex, i)
+				assert.Equal(t, want.new, records[i].New,
+					"left permutation %d, right permutation %d, record[%d] New payload",
+					leftIndex, rightIndex, i)
+			}
+		}
 	}
 }
 
@@ -1309,4 +1357,89 @@ func TestEvalonGolden_DefaultBreakingRules_NewKeywordPolarities(t *testing.T) {
 		"$vocabulary modification affects validation and must be breaking")
 	assert.True(t, polarity(config.Schema.Vocabulary, "Removed"),
 		"$vocabulary removal affects validation and must be breaking")
+}
+
+// TestEvalonGolden_CheckVocabularyChanges_PreservesSourceContext asserts that
+// vocabulary Change records emitted by comparing two YAML-sourced documents
+// retain the applicable source-line context in their Context field. Added
+// records must carry NewLine set (right-hand source line); removed records
+// must carry OriginalLine set (left-hand source line); modified records must
+// carry both. Implementations that pass nil YAML nodes into CreateChange
+// discard this context and fail here.
+func TestEvalonGolden_CheckVocabularyChanges_PreservesSourceContext(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/vocab/keep": true
+        "https://example.com/vocab/removed": true
+        "https://example.com/vocab/toggle": true
+      type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      $vocabulary:
+        "https://example.com/vocab/keep": true
+        "https://example.com/vocab/added": false
+        "https://example.com/vocab/toggle": false
+      type: object`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Len(t, changes.VocabularyChanges, 3,
+		"expected exactly three vocabulary records: one added, one removed, one modified")
+
+	sawAdd, sawRemove, sawModify := false, false, false
+	for _, record := range changes.VocabularyChanges {
+		assert.NotNil(t, record.Context,
+			"every vocabulary change record must carry a non-nil Context preserving source-line information")
+		if record.Context == nil {
+			continue
+		}
+		switch record.ChangeType {
+		case PropertyAdded:
+			assert.NotNil(t, record.Context.NewLine,
+				"PropertyAdded vocabulary record must carry Context.NewLine referencing the right-hand source line")
+			assert.Nil(t, record.Context.OriginalLine,
+				"PropertyAdded vocabulary record must have nil Context.OriginalLine (no left-hand source)")
+			sawAdd = true
+		case PropertyRemoved:
+			assert.NotNil(t, record.Context.OriginalLine,
+				"PropertyRemoved vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
+			assert.Nil(t, record.Context.NewLine,
+				"PropertyRemoved vocabulary record must have nil Context.NewLine (no right-hand source)")
+			sawRemove = true
+		case Modified:
+			assert.NotNil(t, record.Context.OriginalLine,
+				"Modified vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
+			assert.NotNil(t, record.Context.NewLine,
+				"Modified vocabulary record must carry Context.NewLine referencing the right-hand source line")
+			sawModify = true
+		}
+	}
+	assert.True(t, sawAdd, "expected one PropertyAdded vocabulary record")
+	assert.True(t, sawRemove, "expected one PropertyRemoved vocabulary record")
+	assert.True(t, sawModify, "expected one Modified vocabulary record")
 }
