@@ -10,7 +10,9 @@ import (
 	"github.com/pb33f/libopenapi/datamodel/low"
 	v3 "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/index"
+	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -771,4 +773,443 @@ func TestAdditionalOperationsReorderedMatching(t *testing.T) {
 	// against the matched right one, inflating the change count above two.
 	assert.Equal(t, 2, changes.TotalChanges(),
 		"expected exactly two changes (ONLY_LEFT removed, ONLY_RIGHT added); a higher count indicates the reordering-matching bug is still present")
+}
+
+// TestEvalonGolden_QueryAddedExactPayload strengthens the right-only Query
+// case by asserting the emitted PropertyAdded record carries the exact
+// right-hand operation as NewObject (pointer identity with rPath.Query.Value)
+// and no OriginalObject. This rejects implementations that satisfy the
+// weaker "NewObject != nil" contract with an arbitrary (e.g. left-hand)
+// value.
+func TestEvalonGolden_QueryAddedExactPayload(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `get:
+  summary: Get resources`
+
+	right := `get:
+  summary: Get resources
+query:
+  summary: Query resources
+  operationId: queryResources`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "left PathItem BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "right PathItem BuildModel must succeed")
+
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "left PathItem Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "right PathItem Build must succeed")
+
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+
+	var queryAdded *Change
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property == v3.QueryLabel && ch.ChangeType == PropertyAdded {
+			queryAdded = ch
+			break
+		}
+	}
+	assert.NotNil(t, queryAdded, "expected a PropertyAdded change for v3.QueryLabel")
+	if queryAdded == nil {
+		return
+	}
+	assert.Same(t, rPath.Query.Value, queryAdded.NewObject,
+		"NewObject must be the right-hand Query operation exactly, not an arbitrary non-nil value")
+	assert.Nil(t, queryAdded.OriginalObject,
+		"OriginalObject must be nil when query appears only on the right side")
+}
+
+// TestEvalonGolden_AdditionalOperationsReorderedExactRecords strengthens the
+// reordered-keys scenario by asserting the two emitted records are exactly
+// ONE PropertyRemoved for the ONLY_LEFT key and ONE PropertyAdded for the
+// ONLY_RIGHT key, and that NO Change record is emitted for the SHARED key.
+// This rejects implementations that produce a compensating pair of Changes
+// on the wrong keys but happen to sum to the same total count.
+func TestEvalonGolden_AdditionalOperationsReorderedExactRecords(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `additionalOperations:
+  SHARED:
+    summary: Shared operation
+    operationId: sharedOp
+  ONLY_LEFT:
+    summary: Only-left operation
+    operationId: onlyLeftOp`
+
+	right := `additionalOperations:
+  ONLY_RIGHT:
+    summary: Only-right operation
+    operationId: onlyRightOp
+  SHARED:
+    summary: Shared operation
+    operationId: sharedOp`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "left PathItem BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "right PathItem BuildModel must succeed")
+
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "left PathItem Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "right PathItem Build must succeed")
+
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+
+	additionalOpsRecords := make([]*Change, 0)
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property == v3.AdditionalOperationsLabel {
+			additionalOpsRecords = append(additionalOpsRecords, ch)
+		}
+	}
+	assert.Len(t, additionalOpsRecords, 2,
+		"exactly two AdditionalOperations records expected: ONLY_LEFT removed and ONLY_RIGHT added")
+
+	sawOnlyLeftRemoved := false
+	sawOnlyRightAdded := false
+	sharedSpurious := false
+	for _, ch := range additionalOpsRecords {
+		if ch.ChangeType == PropertyRemoved {
+			if op, ok := ch.OriginalObject.(*v3.Operation); ok && op != nil && op.Summary.Value == "Only-left operation" {
+				sawOnlyLeftRemoved = true
+			}
+		}
+		if ch.ChangeType == PropertyAdded {
+			if op, ok := ch.NewObject.(*v3.Operation); ok && op != nil && op.Summary.Value == "Only-right operation" {
+				sawOnlyRightAdded = true
+			}
+		}
+		if op, ok := ch.NewObject.(*v3.Operation); ok && op != nil && op.Summary.Value == "Shared operation" {
+			sharedSpurious = true
+		}
+		if op, ok := ch.OriginalObject.(*v3.Operation); ok && op != nil && op.Summary.Value == "Shared operation" {
+			sharedSpurious = true
+		}
+	}
+	assert.True(t, sawOnlyLeftRemoved,
+		"expected exactly one PropertyRemoved carrying the ONLY_LEFT operation as OriginalObject")
+	assert.True(t, sawOnlyRightAdded,
+		"expected exactly one PropertyAdded carrying the ONLY_RIGHT operation as NewObject")
+	assert.False(t, sharedSpurious,
+		"no AdditionalOperations record should reference the SHARED operation")
+}
+
+// TestEvalonGolden_AdditionalOperationsPerKeyOverridesHonored covers the case
+// where BOTH sides have additionalOperations with one key added and one key
+// removed. Flipping the active AdditionalOperations Added and Removed
+// polarities via SetActiveBreakingRulesConfig must observably change the
+// Breaking flag on each emitted per-key Change record. Rejects implementations
+// where per-key add/remove records ignore the active configuration.
+func TestEvalonGolden_AdditionalOperationsPerKeyOverridesHonored(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `additionalOperations:
+  KEEP:
+    summary: Kept operation
+    operationId: keepOp
+  DROP:
+    summary: Dropped operation
+    operationId: dropOp`
+
+	right := `additionalOperations:
+  KEEP:
+    summary: Kept operation
+    operationId: keepOp
+  ADD:
+    summary: Added operation
+    operationId: addOp`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "left PathItem BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "right PathItem BuildModel must succeed")
+
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "left PathItem Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "right PathItem Build must succeed")
+
+	// Default: Added=false Removed=true. Every per-key remove must be breaking;
+	// every per-key add must be non-breaking.
+	defaultChanges := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, defaultChanges)
+	sawDefaultRemoveBreaking := false
+	sawDefaultAddNonBreaking := false
+	for _, ch := range defaultChanges.GetAllChanges() {
+		if ch.Property != v3.AdditionalOperationsLabel {
+			continue
+		}
+		if ch.ChangeType == PropertyRemoved {
+			assert.True(t, ch.Breaking,
+				"default AdditionalOperations remove polarity must classify per-key removal as breaking")
+			sawDefaultRemoveBreaking = true
+		}
+		if ch.ChangeType == PropertyAdded {
+			assert.False(t, ch.Breaking,
+				"default AdditionalOperations add polarity must classify per-key addition as non-breaking")
+			sawDefaultAddNonBreaking = true
+		}
+	}
+	assert.True(t, sawDefaultRemoveBreaking, "default run must emit at least one per-key remove")
+	assert.True(t, sawDefaultAddNonBreaking, "default run must emit at least one per-key add")
+
+	// Flip polarities: Added=true, Removed=false. Now every per-key add must
+	// be breaking, every per-key remove must be non-breaking.
+	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+		PathItem: &PathItemRules{
+			AdditionalOperations: &BreakingChangeRule{
+				Added:    boolPtr(true),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(false),
+			},
+		},
+	})
+	low.ClearHashCache()
+
+	flippedChanges := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, flippedChanges)
+	sawFlippedRemoveNonBreaking := false
+	sawFlippedAddBreaking := false
+	for _, ch := range flippedChanges.GetAllChanges() {
+		if ch.Property != v3.AdditionalOperationsLabel {
+			continue
+		}
+		if ch.ChangeType == PropertyRemoved {
+			assert.False(t, ch.Breaking,
+				"flipped AdditionalOperations remove polarity must classify per-key removal as non-breaking")
+			sawFlippedRemoveNonBreaking = true
+		}
+		if ch.ChangeType == PropertyAdded {
+			assert.True(t, ch.Breaking,
+				"flipped AdditionalOperations add polarity must classify per-key addition as breaking")
+			sawFlippedAddBreaking = true
+		}
+	}
+	assert.True(t, sawFlippedRemoveNonBreaking, "flipped run must emit at least one per-key remove")
+	assert.True(t, sawFlippedAddBreaking, "flipped run must emit at least one per-key add")
+}
+
+// TestEvalonGolden_ItemEncodingNilValueNodeSafety programmatically constructs
+// two MediaTypes whose ItemEncoding entries have nil ValueNode fields, so the
+// GetValueNode() lookup in CompareMediaTypes returns nil. Implementations
+// that dereference GetValueNode().Value without a nil guard panic here. The
+// reference guards `if node != nil` before reading `node.Value`, so the
+// comparison succeeds and emits the correct addition and removal records.
+func TestEvalonGolden_ItemEncodingNilValueNodeSafety(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	buildMT := func(entries [][2]string) *v3.MediaType {
+		mt := &v3.MediaType{}
+		if len(entries) == 0 {
+			return mt
+		}
+		m := orderedmap.New[low.KeyReference[string], low.ValueReference[*v3.Encoding]]()
+		for _, entry := range entries {
+			m.Set(
+				low.KeyReference[string]{Value: entry[0]},
+				low.ValueReference[*v3.Encoding]{
+					Value:     &v3.Encoding{ContentType: low.NodeReference[string]{Value: entry[1]}},
+					ValueNode: nil,
+				},
+			)
+		}
+		mt.ItemEncoding = low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[*v3.Encoding]]]{
+			Value: m,
+		}
+		return mt
+	}
+
+	lMT := buildMT([][2]string{
+		{"stays", "application/json"},
+		{"removed-entry", "application/xml"},
+	})
+	rMT := buildMT([][2]string{
+		{"stays", "application/json"},
+		{"added-entry", "text/plain"},
+	})
+
+	var changes *MediaTypeChanges
+	assert.NotPanics(t, func() {
+		changes = CompareMediaTypes(lMT, rMT)
+	}, "CompareMediaTypes must not panic on ItemEncoding entries with nil ValueNode")
+	assert.NotNil(t, changes)
+
+	sawAdd := false
+	sawRemove := false
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property != v3.ItemEncodingLabel {
+			continue
+		}
+		switch ch.ChangeType {
+		case ObjectAdded:
+			assert.False(t, ch.Breaking,
+				"default ItemEncoding add polarity must classify addition as non-breaking")
+			sawAdd = true
+		case ObjectRemoved:
+			assert.True(t, ch.Breaking,
+				"default ItemEncoding remove polarity must classify removal as breaking")
+			sawRemove = true
+		}
+	}
+	assert.True(t, sawAdd, "expected one ItemEncoding ObjectAdded record")
+	assert.True(t, sawRemove, "expected one ItemEncoding ObjectRemoved record")
+}
+
+// TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides asserts that
+// CompareSecuritySchemes honors DISTINCT active-config polarities for each of
+// the three OAuth2MetadataUrl transitions. A previous implementation reused a
+// single boolean for all three transitions, so overriding Added or Removed
+// without touching Modified silently had no effect. This test flips each of
+// the three transitions to a distinct non-default polarity and verifies each
+// emitted Change record reflects the correct per-transition override.
+func TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// Set distinct polarities per transition: Added=true, Modified=false,
+	// Removed=true. Defaults are all false, so any test that only surfaces
+	// the Modified transition (the reference's prior bug) cannot distinguish
+	// these overrides.
+	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+		SecurityScheme: &SecuritySchemeRules{
+			OAuth2MetadataUrl: &BreakingChangeRule{
+				Added:    boolPtr(true),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(true),
+			},
+		},
+	})
+
+	compare := func(t *testing.T, left, right string) *SecuritySchemeChanges {
+		var lNode, rNode yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+		require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+		ctx := context.Background()
+
+		var lSS, rSS v3.SecurityScheme
+		require.NoError(t, low.BuildModel(lNode.Content[0], &lSS), "left SecurityScheme BuildModel must succeed")
+		require.NoError(t, low.BuildModel(rNode.Content[0], &rSS), "right SecurityScheme BuildModel must succeed")
+
+		require.NoError(t, lSS.Build(ctx, nil, lNode.Content[0], nil), "left SecurityScheme Build must succeed")
+		require.NoError(t, rSS.Build(ctx, nil, rNode.Content[0], nil), "right SecurityScheme Build must succeed")
+
+		return CompareSecuritySchemes(&lSS, &rSS)
+	}
+
+	// Addition: left has no oauth2MetadataUrl, right introduces one.
+	// Under overridden Added=true, the emitted addition must be breaking.
+	addedChanges := compare(t,
+		`type: oauth2
+description: OAuth2 auth`,
+		`type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`)
+	assert.NotNil(t, addedChanges)
+	sawAdded := false
+	for _, ch := range addedChanges.GetAllChanges() {
+		if ch.Property != v3.OAuth2MetadataUrlLabel {
+			continue
+		}
+		if ch.ChangeType == PropertyAdded {
+			assert.True(t, ch.Breaking,
+				"overridden OAuth2MetadataUrl.Added=true must classify the added record as breaking")
+			sawAdded = true
+		}
+	}
+	assert.True(t, sawAdded, "expected one OAuth2MetadataUrl PropertyAdded record")
+
+	// Removal: left has oauth2MetadataUrl, right removes it.
+	// Under overridden Removed=true, the emitted removal must be breaking.
+	removedChanges := compare(t,
+		`type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`,
+		`type: oauth2
+description: OAuth2 auth`)
+	assert.NotNil(t, removedChanges)
+	sawRemoved := false
+	for _, ch := range removedChanges.GetAllChanges() {
+		if ch.Property != v3.OAuth2MetadataUrlLabel {
+			continue
+		}
+		if ch.ChangeType == PropertyRemoved {
+			assert.True(t, ch.Breaking,
+				"overridden OAuth2MetadataUrl.Removed=true must classify the removed record as breaking")
+			sawRemoved = true
+		}
+	}
+	assert.True(t, sawRemoved, "expected one OAuth2MetadataUrl PropertyRemoved record")
+
+	// Modification: both sides have oauth2MetadataUrl with different URLs.
+	// Under overridden Modified=false, the emitted modification must be non-breaking.
+	modifiedChanges := compare(t,
+		`type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`,
+		`type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/v2/.well-known/oauth-authorization-server`)
+	assert.NotNil(t, modifiedChanges)
+	sawModified := false
+	for _, ch := range modifiedChanges.GetAllChanges() {
+		if ch.Property != v3.OAuth2MetadataUrlLabel {
+			continue
+		}
+		if ch.ChangeType == Modified {
+			assert.False(t, ch.Breaking,
+				"overridden OAuth2MetadataUrl.Modified=false must classify the modified record as non-breaking")
+			sawModified = true
+		}
+	}
+	assert.True(t, sawModified, "expected one OAuth2MetadataUrl Modified record")
 }

@@ -174,9 +174,20 @@ func CompareSecuritySchemes(l, r any) *SecuritySchemeChanges {
 			BreakingModified(CompSecurityScheme, PropOpenIDConnectURL))
 
 		// OpenAPI 3.2+ fields
-		addPropertyCheck(&props, lSS.OAuth2MetadataUrl.ValueNode, rSS.OAuth2MetadataUrl.ValueNode,
-			lSS.OAuth2MetadataUrl.Value, rSS.OAuth2MetadataUrl.Value, &changes, v3.OAuth2MetadataUrlLabel,
-			BreakingModified(CompSecurityScheme, PropOAuth2MetadataUrl))
+		// oauth2MetadataUrl uses separate add/remove/modify checks so each
+		// transition polarity is looked up independently from the active
+		// breaking-rule configuration. `addPropertyCheck` reuses a single
+		// boolean across all three transitions, which silently drops any
+		// per-transition override the caller has configured.
+		CheckForRemoval(lSS.OAuth2MetadataUrl.ValueNode, rSS.OAuth2MetadataUrl.ValueNode,
+			v3.OAuth2MetadataUrlLabel, &changes, BreakingRemoved(CompSecurityScheme, PropOAuth2MetadataUrl),
+			lSS.OAuth2MetadataUrl.Value, rSS.OAuth2MetadataUrl.Value)
+		CheckForAddition(lSS.OAuth2MetadataUrl.ValueNode, rSS.OAuth2MetadataUrl.ValueNode,
+			v3.OAuth2MetadataUrlLabel, &changes, BreakingAdded(CompSecurityScheme, PropOAuth2MetadataUrl),
+			lSS.OAuth2MetadataUrl.Value, rSS.OAuth2MetadataUrl.Value)
+		CheckForModification(lSS.OAuth2MetadataUrl.ValueNode, rSS.OAuth2MetadataUrl.ValueNode,
+			v3.OAuth2MetadataUrlLabel, &changes, BreakingModified(CompSecurityScheme, PropOAuth2MetadataUrl),
+			lSS.OAuth2MetadataUrl.Value, rSS.OAuth2MetadataUrl.Value)
 
 		addPropertyCheck(&props, lSS.Deprecated.ValueNode, rSS.Deprecated.ValueNode,
 			lSS.Deprecated.Value, rSS.Deprecated.Value, &changes, v3.DeprecatedLabel, false)
