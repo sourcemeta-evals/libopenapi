@@ -37,19 +37,19 @@ func TestQueryMethodConfigurableBreakingRules(t *testing.T) {
   summary: Get resources`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	// Default behavior: removing Query should be breaking
 	changes := ComparePathItems(&lPath, &rPath)
@@ -96,19 +96,19 @@ query:
   operationId: queryResources`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	// Default behavior: adding Query should not be breaking
 	changes := ComparePathItems(&lPath, &rPath)
@@ -154,19 +154,19 @@ func TestAdditionalOperationsConfigurableBreakingRules(t *testing.T) {
   summary: Get resources`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	// Default behavior: removing additionalOperations should be breaking
 	changes := ComparePathItems(&lPath, &rPath)
@@ -217,19 +217,19 @@ additionalOperations:
     summary: Link operation`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	// Default behavior: adding additionalOperations should not be breaking.
 	changes := ComparePathItems(&lPath, &rPath)
@@ -276,19 +276,19 @@ itemSchema:
   type: array`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lMT, rMT v3.MediaType
-	_ = low.BuildModel(&lNode, &lMT)
-	_ = low.BuildModel(&rNode, &rMT)
+	require.NoError(t, low.BuildModel(&lNode, &lMT), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rMT), "r model BuildModel must succeed")
 
-	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx), "lMT Build must succeed")
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx), "rMT Build must succeed")
 
 	// Default behavior: removing itemSchema should be breaking
 	changes := CompareMediaTypes(&lMT, &rMT)
@@ -333,19 +333,19 @@ itemSchema:
   type: string`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lMT, rMT v3.MediaType
-	_ = low.BuildModel(&lNode, &lMT)
-	_ = low.BuildModel(&rNode, &rMT)
+	require.NoError(t, low.BuildModel(&lNode, &lMT), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rMT), "r model BuildModel must succeed")
 
-	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx), "lMT Build must succeed")
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx), "rMT Build must succeed")
 
 	// Default behavior: adding itemSchema should be breaking
 	changes := CompareMediaTypes(&lMT, &rMT)
@@ -392,17 +392,17 @@ description: OAuth2 auth
 oauth2MetadataUrl: https://example.com/v2/.well-known/oauth-authorization-server`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	ctx := context.Background()
 
 	var lSS, rSS v3.SecurityScheme
-	_ = low.BuildModel(lNode.Content[0], &lSS)
-	_ = low.BuildModel(rNode.Content[0], &rSS)
+	require.NoError(t, low.BuildModel(lNode.Content[0], &lSS), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(rNode.Content[0], &rSS), "r model BuildModel must succeed")
 
-	_ = lSS.Build(ctx, nil, lNode.Content[0], nil)
-	_ = rSS.Build(ctx, nil, rNode.Content[0], nil)
+	require.NoError(t, lSS.Build(ctx, nil, lNode.Content[0], nil), "lSS Build must succeed")
+	require.NoError(t, rSS.Build(ctx, nil, rNode.Content[0], nil), "rSS Build must succeed")
 
 	// Default behavior: modifying oauth2MetadataUrl should not be breaking
 	changes := CompareSecuritySchemes(&lSS, &rSS)
@@ -547,19 +547,19 @@ itemEncoding:
   type: array`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lMT, rMT v3.MediaType
-	_ = low.BuildModel(&lNode, &lMT)
-	_ = low.BuildModel(&rNode, &rMT)
+	require.NoError(t, low.BuildModel(&lNode, &lMT), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rMT), "r model BuildModel must succeed")
 
-	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx), "lMT Build must succeed")
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx), "rMT Build must succeed")
 
 	// Default behavior: removing an itemEncoding entry should be breaking.
 	changes := CompareMediaTypes(&lMT, &rMT)
@@ -611,19 +611,19 @@ itemEncoding:
     contentType: application/xml`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lMT, rMT v3.MediaType
-	_ = low.BuildModel(&lNode, &lMT)
-	_ = low.BuildModel(&rNode, &rMT)
+	require.NoError(t, low.BuildModel(&lNode, &lMT), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rMT), "r model BuildModel must succeed")
 
-	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx), "lMT Build must succeed")
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx), "rMT Build must succeed")
 
 	// Default behavior: adding an itemEncoding entry should not be breaking.
 	changes := CompareMediaTypes(&lMT, &rMT)
@@ -674,19 +674,19 @@ query:
   operationId: queryResources`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	changes := ComparePathItems(&lPath, &rPath)
 	assert.NotNil(t, changes)
@@ -706,6 +706,8 @@ query:
 			"the added-Query change must carry the right-hand Query operation as NewObject, not nil")
 		assert.Nil(t, queryAdded.OriginalObject,
 			"the added-Query change should have no OriginalObject (left side had no query)")
+		assert.False(t, queryAdded.Breaking,
+			"adding query is non-breaking by default (Query.Added is false in the default polarity table)")
 	}
 }
 
@@ -747,19 +749,19 @@ func TestAdditionalOperationsReorderedMatching(t *testing.T) {
     operationId: sharedOp`
 
 	var lNode, rNode yaml.Node
-	_ = yaml.Unmarshal([]byte(left), &lNode)
-	_ = yaml.Unmarshal([]byte(right), &rNode)
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
 
 	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
 	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
 	ctx := context.Background()
 
 	var lPath, rPath v3.PathItem
-	_ = low.BuildModel(&lNode, &lPath)
-	_ = low.BuildModel(&rNode, &rPath)
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "l model BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "r model BuildModel must succeed")
 
-	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
-	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "lPath Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "rPath Build must succeed")
 
 	var changes *PathItemChanges
 	assert.NotPanics(t, func() {
@@ -832,6 +834,8 @@ query:
 		"NewObject must be the right-hand Query operation exactly, not an arbitrary non-nil value")
 	assert.Nil(t, queryAdded.OriginalObject,
 		"OriginalObject must be nil when query appears only on the right side")
+	assert.False(t, queryAdded.Breaking,
+		"adding query is non-breaking by default (Query.Added is false in the default polarity table)")
 }
 
 // TestEvalonGolden_AdditionalOperationsReorderedExactRecords strengthens the
