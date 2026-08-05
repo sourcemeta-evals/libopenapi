@@ -1217,3 +1217,79 @@ oauth2MetadataUrl: https://example.com/v2/.well-known/oauth-authorization-server
 	}
 	assert.True(t, sawModified, "expected one OAuth2MetadataUrl Modified record")
 }
+
+// TestEvalonGolden_ItemEncodingChangeKeyPreservation asserts that when
+// itemEncoding entries added or removed via CompareMediaTypes originate from
+// YAML text, the emitted Change records preserve the affected map key in
+// Change.New / Change.Original for downstream diagnostics. A replacement for
+// the generic map-comparison path that passes an empty YAML mapping node's
+// Value directly into CreateChange without populating it from the map key can
+// lose the affected key on ordinary YAML-backed fixtures while still passing
+// polarity, override, and nil-node safety checks.
+func TestEvalonGolden_ItemEncodingChangeKeyPreservation(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `schema:
+  type: array
+itemEncoding:
+  kept-entry:
+    contentType: application/json
+  removed-entry:
+    contentType: application/xml`
+
+	right := `schema:
+  type: array
+itemEncoding:
+  kept-entry:
+    contentType: application/json
+  added-entry:
+    contentType: text/plain`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left YAML fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right YAML fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	require.NoError(t, low.BuildModel(&lNode, &lMT), "left MediaType BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rMT), "right MediaType BuildModel must succeed")
+
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx), "left MediaType Build must succeed")
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx), "right MediaType Build must succeed")
+
+	changes := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes)
+
+	sawRemovedKey := false
+	sawAddedKey := false
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property != v3.ItemEncodingLabel {
+			continue
+		}
+		switch ch.ChangeType {
+		case ObjectRemoved:
+			assert.Equal(t, "removed-entry", ch.Original,
+				"ObjectRemoved record for itemEncoding must preserve the removed map key in Change.Original")
+			assert.Empty(t, ch.New,
+				"ObjectRemoved record must not carry a right-side key in Change.New")
+			sawRemovedKey = true
+		case ObjectAdded:
+			assert.Equal(t, "added-entry", ch.New,
+				"ObjectAdded record for itemEncoding must preserve the added map key in Change.New")
+			assert.Empty(t, ch.Original,
+				"ObjectAdded record must not carry a left-side key in Change.Original")
+			sawAddedKey = true
+		}
+	}
+	assert.True(t, sawRemovedKey, "expected one ObjectRemoved record for itemEncoding key 'removed-entry'")
+	assert.True(t, sawAddedKey, "expected one ObjectAdded record for itemEncoding key 'added-entry'")
+}
