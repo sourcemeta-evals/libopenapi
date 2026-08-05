@@ -5,12 +5,12 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/datamodel/low/base"
-	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v4"
 )
@@ -630,10 +630,40 @@ components:
 	assert.Equal(t, PropertyRemoved, changes.VocabularyChanges[0].ChangeType)
 }
 
-// TestCheckVocabularyChanges_BothNil tests the checkVocabularyChanges helper with both nil
-func TestEvalonGolden_CheckVocabularyChanges_BothNil(t *testing.T) {
-	changes := checkVocabularyChanges(nil, nil)
-	assert.Nil(t, changes)
+// TestEvalonGolden_CompareSchemas_Vocabulary_BothAbsent asserts that comparing
+// two schemas that both omit `$vocabulary` emits no vocabulary change records.
+// The schemas differ only on `$comment` so `CompareSchemas` returns a non-nil
+// aggregate we can inspect for the absence of vocabulary records.
+func TestEvalonGolden_CompareSchemas_Vocabulary_BothAbsent(t *testing.T) {
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      $comment: left comment`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      $comment: right comment`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes, "differing $comment produces non-nil aggregate")
+	assert.Empty(t, changes.VocabularyChanges,
+		"no vocabulary records must be emitted when both schemas omit $vocabulary entirely")
 }
 
 // TestCompareSchemas_Vocabulary_MultipleChanges tests multiple vocabulary changes at once
@@ -771,15 +801,22 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 		ResetDefaultBreakingRules()
 	}()
 
-	buildVocab := func(entries [][2]string) *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]] {
-		m := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
+	buildDoc := func(entries [][2]string) string {
+		var sb strings.Builder
+		sb.WriteString(`openapi: "3.1.0"
+info:
+  title: t
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      $vocabulary:
+`)
 		for _, entry := range entries {
-			m.Set(
-				low.KeyReference[string]{Value: entry[0]},
-				low.ValueReference[bool]{Value: entry[1] == "true"},
-			)
+			fmt.Fprintf(&sb, "        %q: %s\n", entry[0], entry[1])
 		}
-		return m
+		return sb.String()
 	}
 
 	// Multiple insertion-order permutations covering both left and right
@@ -847,7 +884,17 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 	var baseline []*Change
 	for leftIndex, leftEntries := range leftPermutations {
 		for rightIndex, rightEntries := range rightPermutations {
-			records := checkVocabularyChanges(buildVocab(leftEntries), buildVocab(rightEntries))
+			low.ClearHashCache()
+			leftDoc, rightDoc := test_BuildDoc(buildDoc(leftEntries), buildDoc(rightEntries))
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			if !assert.NotNil(t, changes,
+				"left permutation %d, right permutation %d: expected non-nil change aggregate",
+				leftIndex, rightIndex) {
+				continue
+			}
+			records := changes.VocabularyChanges
 
 			// Every record must be labelled $vocabulary.
 			for i, record := range records {
@@ -967,15 +1014,28 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 		ResetDefaultBreakingRules()
 	}()
 
-	buildVocab := func(entries [][2]any) *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]] {
-		m := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
-		for _, entry := range entries {
-			m.Set(
-				low.KeyReference[string]{Value: entry[0].(string)},
-				low.ValueReference[bool]{Value: entry[1].(bool)},
-			)
+	// Build an OpenAPI doc whose Pet schema (optionally) carries the given
+	// vocabulary entries. An empty entries slice omits the `$vocabulary`
+	// field entirely, mapping to a nil low-level Vocabulary value.
+	buildDoc := func(entries [][2]any) string {
+		header := `openapi: "3.1.0"
+info:
+  title: t
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object`
+		if len(entries) == 0 {
+			return header
 		}
-		return m
+		var sb strings.Builder
+		sb.WriteString(header)
+		sb.WriteString("\n      $vocabulary:\n")
+		for _, entry := range entries {
+			fmt.Fprintf(&sb, "        %q: %v\n", entry[0].(string), entry[1].(bool))
+		}
+		return sb.String()
 	}
 
 	type expected struct {
@@ -987,34 +1047,34 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		left          *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]
-		right         *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]
+		left          [][2]any
+		right         [][2]any
 		expectRecords []expected
 	}{
 		{
-			name:          "both nil emits no records and does not panic",
+			name:          "both absent emits no vocabulary records",
 			left:          nil,
 			right:         nil,
 			expectRecords: nil,
 		},
 		{
-			name: "left nil with right entries emits per-entry additions",
+			name: "left absent with right entries emits per-entry additions",
 			left: nil,
-			right: buildVocab([][2]any{
+			right: [][2]any{
 				{"https://example.com/vocab/a", true},
 				{"https://example.com/vocab/b", false},
-			}),
+			},
 			expectRecords: []expected{
 				{uri: "https://example.com/vocab/a", changeType: PropertyAdded, new: "https://example.com/vocab/a=true"},
 				{uri: "https://example.com/vocab/b", changeType: PropertyAdded, new: "https://example.com/vocab/b=false"},
 			},
 		},
 		{
-			name: "right nil with left entries emits per-entry removals",
-			left: buildVocab([][2]any{
+			name: "right absent with left entries emits per-entry removals",
+			left: [][2]any{
 				{"https://example.com/vocab/a", true},
 				{"https://example.com/vocab/b", false},
-			}),
+			},
 			right: nil,
 			expectRecords: []expected{
 				{uri: "https://example.com/vocab/a", changeType: PropertyRemoved, original: "https://example.com/vocab/a=true"},
@@ -1023,38 +1083,38 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 		},
 		{
 			name: "per entry added inside otherwise non-empty map",
-			left: buildVocab([][2]any{
+			left: [][2]any{
 				{"https://example.com/vocab/shared", true},
-			}),
-			right: buildVocab([][2]any{
+			},
+			right: [][2]any{
 				{"https://example.com/vocab/shared", true},
 				{"https://example.com/vocab/added", false},
-			}),
+			},
 			expectRecords: []expected{
 				{uri: "https://example.com/vocab/added", changeType: PropertyAdded, new: "https://example.com/vocab/added=false"},
 			},
 		},
 		{
 			name: "per entry removed inside otherwise non-empty map",
-			left: buildVocab([][2]any{
+			left: [][2]any{
 				{"https://example.com/vocab/shared", true},
 				{"https://example.com/vocab/removed", false},
-			}),
-			right: buildVocab([][2]any{
+			},
+			right: [][2]any{
 				{"https://example.com/vocab/shared", true},
-			}),
+			},
 			expectRecords: []expected{
 				{uri: "https://example.com/vocab/removed", changeType: PropertyRemoved, original: "https://example.com/vocab/removed=false"},
 			},
 		},
 		{
 			name: "per entry modified when boolean value differs",
-			left: buildVocab([][2]any{
+			left: [][2]any{
 				{"https://example.com/vocab/toggle", true},
-			}),
-			right: buildVocab([][2]any{
+			},
+			right: [][2]any{
 				{"https://example.com/vocab/toggle", false},
-			}),
+			},
 			expectRecords: []expected{
 				{
 					uri:        "https://example.com/vocab/toggle",
@@ -1066,28 +1126,28 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 		},
 		{
 			name: "identical maps emit no records",
-			left: buildVocab([][2]any{
+			left: [][2]any{
 				{"https://example.com/vocab/a", true},
 				{"https://example.com/vocab/b", false},
-			}),
-			right: buildVocab([][2]any{
+			},
+			right: [][2]any{
 				{"https://example.com/vocab/a", true},
 				{"https://example.com/vocab/b", false},
-			}),
+			},
 			expectRecords: nil,
 		},
 		{
 			name: "mixed simultaneous add remove and modify alongside unchanged entry",
-			left: buildVocab([][2]any{
+			left: [][2]any{
 				{"https://example.com/vocab/unchanged", true},
 				{"https://example.com/vocab/removed", true},
 				{"https://example.com/vocab/toggle", true},
-			}),
-			right: buildVocab([][2]any{
+			},
+			right: [][2]any{
 				{"https://example.com/vocab/unchanged", true},
 				{"https://example.com/vocab/added", false},
 				{"https://example.com/vocab/toggle", false},
-			}),
+			},
 			expectRecords: []expected{
 				{uri: "https://example.com/vocab/added", changeType: PropertyAdded, new: "https://example.com/vocab/added=false"},
 				{uri: "https://example.com/vocab/removed", changeType: PropertyRemoved, original: "https://example.com/vocab/removed=true"},
@@ -1103,10 +1163,16 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
+			low.ClearHashCache()
+			leftDoc, rightDoc := test_BuildDoc(buildDoc(testCase.left), buildDoc(testCase.right))
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
 			var records []*Change
-			assert.NotPanics(t, func() {
-				records = checkVocabularyChanges(testCase.left, testCase.right)
-			}, "checkVocabularyChanges must not panic on nil receivers")
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			if changes != nil {
+				records = changes.VocabularyChanges
+			}
 
 			assert.Len(t, records, len(testCase.expectRecords),
 				"unexpected number of vocabulary change records")
