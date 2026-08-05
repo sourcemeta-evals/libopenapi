@@ -2053,8 +2053,22 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 	// pre-allocate result slice with reasonable capacity
 	var vocabChanges []*Change
 
+	// iterate in a deterministic (sorted URI) order so emitted change records
+	// are reproducible across runs regardless of native Go map iteration order
+	lKeys := make([]string, 0, len(lVocabMap))
+	for uri := range lVocabMap {
+		lKeys = append(lKeys, uri)
+	}
+	sort.Strings(lKeys)
+	rKeys := make([]string, 0, len(rVocabMap))
+	for uri := range rVocabMap {
+		rKeys = append(rKeys, uri)
+	}
+	sort.Strings(rKeys)
+
 	// check for removed or modified vocabularies
-	for uri, lVal := range lVocabMap {
+	for _, uri := range lKeys {
+		lVal := lVocabMap[uri]
 		if rVal, ok := rVocabMap[uri]; ok {
 			// vocabulary exists in both - check if value changed
 			if lVal != rVal {
@@ -2089,7 +2103,8 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 	}
 
 	// check for added vocabularies
-	for uri, rVal := range rVocabMap {
+	for _, uri := range rKeys {
+		rVal := rVocabMap[uri]
 		if _, ok := lVocabMap[uri]; !ok {
 			// vocabulary was added
 			c := &Change{

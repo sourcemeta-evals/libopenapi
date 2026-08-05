@@ -4,7 +4,9 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/pb33f/libopenapi/utils"
@@ -16,6 +18,7 @@ import (
 	v3 "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/stretchr/testify/assert"
+	yaml "go.yaml.in/yaml/v4"
 )
 
 // These tests require full documents to be tested properly. schemas are perhaps the most complex
@@ -5396,7 +5399,8 @@ components:
 	for _, change := range changes.Changes {
 		if change.Property == PropContentSchema {
 			found = true
-			assert.Equal(t, PropertyAdded, change.ChangeType)
+			assert.Contains(t, []int{PropertyAdded, ObjectAdded}, change.ChangeType,
+				"contentSchema addition may be represented as either PropertyAdded or ObjectAdded")
 			assert.True(t, change.Breaking)
 			break
 		}
@@ -5449,7 +5453,8 @@ components:
 	for _, change := range changes.Changes {
 		if change.Property == PropContentSchema {
 			found = true
-			assert.Equal(t, PropertyRemoved, change.ChangeType)
+			assert.Contains(t, []int{PropertyRemoved, ObjectRemoved}, change.ChangeType,
+				"contentSchema removal may be represented as either PropertyRemoved or ObjectRemoved")
 			assert.True(t, change.Breaking)
 			break
 		}
@@ -5884,4 +5889,105 @@ components:
 		assert.Contains(t, all, c,
 			"GetAllChanges must include every $vocabulary entry change")
 	}
+}
+
+// TestCheckVocabularyChanges_DeterministicOrdering verifies that emitting
+// $vocabulary change records is reproducible across runs regardless of native
+// Go map iteration order. Two vocabulary maps that differ in source order but
+// carry the same URI set must produce the same sequence of Change records.
+func TestCheckVocabularyChanges_DeterministicOrdering(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	buildVocab := func(entries [][2]string) *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]] {
+		m := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
+		for _, entry := range entries {
+			m.Set(
+				low.KeyReference[string]{Value: entry[0]},
+				low.ValueReference[bool]{Value: entry[1] == "true"},
+			)
+		}
+		return m
+	}
+
+	// Same URI set across both sides, but each contains one URI the other does
+	// not — the union has four entries. Left declares them in one source order,
+	// right declares them in a different source order.
+	left := buildVocab([][2]string{
+		{"https://example.com/vocab/c", "true"},
+		{"https://example.com/vocab/shared", "true"},
+		{"https://example.com/vocab/a", "false"},
+	})
+	right := buildVocab([][2]string{
+		{"https://example.com/vocab/shared", "false"},
+		{"https://example.com/vocab/b", "true"},
+		{"https://example.com/vocab/d", "false"},
+	})
+
+	first := checkVocabularyChanges(left, right)
+	second := checkVocabularyChanges(left, right)
+
+	assert.NotEmpty(t, first, "expected at least one vocabulary change record")
+	assert.Equal(t, len(first), len(second), "record count must be stable across runs")
+	for i := range first {
+		assert.Equal(t, first[i].Property, second[i].Property,
+			"record[%d] Property must be stable across runs", i)
+		assert.Equal(t, first[i].ChangeType, second[i].ChangeType,
+			"record[%d] ChangeType must be stable across runs", i)
+		assert.Equal(t, first[i].Original, second[i].Original,
+			"record[%d] Original payload must be stable across runs", i)
+		assert.Equal(t, first[i].New, second[i].New,
+			"record[%d] New payload must be stable across runs", i)
+	}
+}
+
+// TestSchemaChanges_MarshalJSONYAML_NewContainers verifies that the two new
+// change containers (ContentSchemaChanges and VocabularyChanges) serialize
+// under their contract keyword keys in both JSON and YAML output. This
+// protects the public serialized API against tag drift.
+func TestSchemaChanges_MarshalJSONYAML_NewContainers(t *testing.T) {
+	sc := &SchemaChanges{
+		VocabularyChanges: []*Change{
+			{
+				Property:   base.VocabularyLabel,
+				ChangeType: PropertyAdded,
+				New:        "https://example.com/vocab=true",
+			},
+		},
+		ContentSchemaChanges: &SchemaChanges{
+			PropertyChanges: &PropertyChanges{
+				Changes: []*Change{
+					{
+						Property:   "type",
+						ChangeType: Modified,
+						Original:   "object",
+						New:        "array",
+					},
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := json.Marshal(sc)
+	assert.NoError(t, err, "SchemaChanges must marshal to JSON without error")
+	jsonOutput := string(jsonBytes)
+	assert.Contains(t, jsonOutput, `"$vocabulary"`,
+		"JSON output must use $vocabulary as the container key")
+	assert.Contains(t, jsonOutput, `"contentSchema"`,
+		"JSON output must use contentSchema as the container key")
+	assert.NotContains(t, strings.ReplaceAll(jsonOutput, "$vocabulary", ""), `"vocabulary"`,
+		"JSON output must NOT use plain vocabulary (must retain the leading $)")
+
+	yamlBytes, err := yaml.Marshal(sc)
+	assert.NoError(t, err, "SchemaChanges must marshal to YAML without error")
+	yamlOutput := string(yamlBytes)
+	assert.Contains(t, yamlOutput, "$vocabulary:",
+		"YAML output must use $vocabulary as the container key")
+	assert.Contains(t, yamlOutput, "contentSchema:",
+		"YAML output must use contentSchema as the container key")
 }
