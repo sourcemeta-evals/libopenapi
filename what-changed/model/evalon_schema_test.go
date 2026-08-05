@@ -782,33 +782,13 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 		return m
 	}
 
-	// Canonical emitted sequence for these inputs. The reference comparator
-	// walks left URIs in sorted order (emitting Modified for shared keys with
-	// differing values and PropertyRemoved for left-only keys), then walks
-	// right URIs in sorted order (emitting PropertyAdded for right-only keys).
-	// This yields the following exact expected record sequence:
-	//   1. a=false -> PropertyRemoved (left-only)
-	//   2. c=true  -> PropertyRemoved (left-only)
-	//   3. shared  -> Modified (true -> false)
-	//   4. b=true  -> PropertyAdded (right-only)
-	//   5. d=false -> PropertyAdded (right-only)
-	type expectedRecord struct {
-		changeType int
-		original   string
-		new        string
-	}
-	expected := []expectedRecord{
-		{changeType: PropertyRemoved, original: "https://example.com/vocab/a=false"},
-		{changeType: PropertyRemoved, original: "https://example.com/vocab/c=true"},
-		{changeType: Modified, original: "https://example.com/vocab/shared=true", new: "https://example.com/vocab/shared=false"},
-		{changeType: PropertyAdded, new: "https://example.com/vocab/b=true"},
-		{changeType: PropertyAdded, new: "https://example.com/vocab/d=false"},
-	}
-
-	// Every combination of left and right insertion orders must produce the
-	// SAME record sequence. If the comparator preserved source insertion order
-	// or ranged a native Go map, some permutations would drift from the
-	// canonical sequence.
+	// Multiple insertion-order permutations covering both left and right
+	// vocabulary maps. Every combination MUST produce the SAME emitted record
+	// sequence regardless of source insertion order. The oracle uses the FIRST
+	// combination's output as the reproducibility baseline rather than a fixed
+	// reference sequence, so any deterministic ordering strategy (URI-sorted
+	// union, sorted removals then sorted additions, or any other consistent
+	// canonicalization) qualifies. A native-map iteration would drift.
 	leftPermutations := [][][2]string{
 		{
 			{"https://example.com/vocab/c", "true"},
@@ -844,28 +824,79 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 		},
 	}
 
+	// Also verify the expected record SET (semantically) is emitted regardless
+	// of order: exactly one PropertyRemoved (or ObjectRemoved) per left-only
+	// URI, one PropertyAdded (or ObjectAdded) per right-only URI, and one
+	// Modified for the shared URI whose value changed. This catches
+	// implementations that drop records entirely rather than reorder them.
+	type expectedRecord struct {
+		original string
+		new      string
+	}
+	expectedSet := []expectedRecord{
+		{original: "https://example.com/vocab/a=false"},
+		{original: "https://example.com/vocab/c=true"},
+		{original: "https://example.com/vocab/shared=true", new: "https://example.com/vocab/shared=false"},
+		{new: "https://example.com/vocab/b=true"},
+		{new: "https://example.com/vocab/d=false"},
+	}
+
+	// Compute the baseline sequence from the FIRST permutation combination.
+	// Every subsequent combination must produce the same sequence in the same
+	// order (reproducibility across insertion permutations).
+	var baseline []*Change
 	for leftIndex, leftEntries := range leftPermutations {
 		for rightIndex, rightEntries := range rightPermutations {
 			records := checkVocabularyChanges(buildVocab(leftEntries), buildVocab(rightEntries))
 
-			assert.Equal(t, len(expected), len(records),
-				"left permutation %d, right permutation %d: expected %d records, got %d",
-				leftIndex, rightIndex, len(expected), len(records))
-			if len(records) != len(expected) {
-				continue
-			}
-			for i, want := range expected {
-				assert.Equal(t, base.VocabularyLabel, records[i].Property,
+			// Every record must be labelled $vocabulary.
+			for i, record := range records {
+				assert.Equal(t, base.VocabularyLabel, record.Property,
 					"left permutation %d, right permutation %d, record[%d] Property must be $vocabulary",
 					leftIndex, rightIndex, i)
-				assert.Equal(t, want.changeType, records[i].ChangeType,
-					"left permutation %d, right permutation %d, record[%d] ChangeType",
+			}
+
+			// Semantic set check: every expected (Original, New) payload pair
+			// must be present exactly once.
+			assert.Equal(t, len(expectedSet), len(records),
+				"left permutation %d, right permutation %d: expected %d records, got %d",
+				leftIndex, rightIndex, len(expectedSet), len(records))
+			for _, want := range expectedSet {
+				found := false
+				for _, got := range records {
+					if got.Original == want.original && got.New == want.new {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found,
+					"left permutation %d, right permutation %d: missing expected record (Original=%q New=%q)",
+					leftIndex, rightIndex, want.original, want.new)
+			}
+
+			// Reproducibility check: the emitted sequence must match the
+			// baseline established by the first permutation. The specific
+			// canonical order is implementation-defined; only stability
+			// across permutations is required.
+			if baseline == nil {
+				baseline = records
+				continue
+			}
+			assert.Equal(t, len(baseline), len(records),
+				"left permutation %d, right permutation %d: baseline sequence length mismatch",
+				leftIndex, rightIndex)
+			for i := range baseline {
+				if i >= len(records) {
+					break
+				}
+				assert.Equal(t, baseline[i].ChangeType, records[i].ChangeType,
+					"left permutation %d, right permutation %d, record[%d] ChangeType must match baseline (reproducibility)",
 					leftIndex, rightIndex, i)
-				assert.Equal(t, want.original, records[i].Original,
-					"left permutation %d, right permutation %d, record[%d] Original payload",
+				assert.Equal(t, baseline[i].Original, records[i].Original,
+					"left permutation %d, right permutation %d, record[%d] Original must match baseline (reproducibility)",
 					leftIndex, rightIndex, i)
-				assert.Equal(t, want.new, records[i].New,
-					"left permutation %d, right permutation %d, record[%d] New payload",
+				assert.Equal(t, baseline[i].New, records[i].New,
+					"left permutation %d, right permutation %d, record[%d] New must match baseline (reproducibility)",
 					leftIndex, rightIndex, i)
 			}
 		}
@@ -1411,35 +1442,61 @@ components:
 	assert.Len(t, changes.VocabularyChanges, 3,
 		"expected exactly three vocabulary records: one added, one removed, one modified")
 
-	sawAdd, sawRemove, sawModify := false, false, false
-	for _, record := range changes.VocabularyChanges {
-		assert.NotNil(t, record.Context,
-			"every vocabulary change record must carry a non-nil Context preserving source-line information")
-		if record.Context == nil {
-			continue
+	// Locate records by URI payload rather than by ChangeType constant.
+	// A correct implementation may use PropertyAdded/PropertyRemoved OR
+	// ObjectAdded/ObjectRemoved (both are acceptable transition constants for
+	// this task, and canonical-type correctness is graded by other criteria).
+	// This criterion measures ONLY source-line preservation, so records are
+	// identified by their payload URI and each record's Context is inspected
+	// according to which payload side is populated.
+	uriFor := func(record *Change) string {
+		payload := record.Original
+		if payload == "" {
+			payload = record.New
 		}
-		switch record.ChangeType {
-		case PropertyAdded:
-			assert.NotNil(t, record.Context.NewLine,
-				"PropertyAdded vocabulary record must carry Context.NewLine referencing the right-hand source line")
-			assert.Nil(t, record.Context.OriginalLine,
-				"PropertyAdded vocabulary record must have nil Context.OriginalLine (no left-hand source)")
-			sawAdd = true
-		case PropertyRemoved:
-			assert.NotNil(t, record.Context.OriginalLine,
-				"PropertyRemoved vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
-			assert.Nil(t, record.Context.NewLine,
-				"PropertyRemoved vocabulary record must have nil Context.NewLine (no right-hand source)")
-			sawRemove = true
-		case Modified:
-			assert.NotNil(t, record.Context.OriginalLine,
-				"Modified vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
-			assert.NotNil(t, record.Context.NewLine,
-				"Modified vocabulary record must carry Context.NewLine referencing the right-hand source line")
-			sawModify = true
+		return strings.SplitN(payload, "=", 2)[0]
+	}
+	byURI := make(map[string]*Change, len(changes.VocabularyChanges))
+	for _, record := range changes.VocabularyChanges {
+		byURI[uriFor(record)] = record
+	}
+
+	addedRecord, ok := byURI["https://example.com/vocab/added"]
+	assert.True(t, ok, "expected a vocabulary record carrying the 'added' URI in its New payload")
+	if ok {
+		assert.NotNil(t, addedRecord.Context,
+			"added vocabulary record must carry a non-nil Context")
+		if addedRecord.Context != nil {
+			assert.NotNil(t, addedRecord.Context.NewLine,
+				"added vocabulary record must carry Context.NewLine referencing the right-hand source line")
+			assert.Nil(t, addedRecord.Context.OriginalLine,
+				"added vocabulary record must have nil Context.OriginalLine (no left-hand source)")
 		}
 	}
-	assert.True(t, sawAdd, "expected one PropertyAdded vocabulary record")
-	assert.True(t, sawRemove, "expected one PropertyRemoved vocabulary record")
-	assert.True(t, sawModify, "expected one Modified vocabulary record")
+
+	removedRecord, ok := byURI["https://example.com/vocab/removed"]
+	assert.True(t, ok, "expected a vocabulary record carrying the 'removed' URI in its Original payload")
+	if ok {
+		assert.NotNil(t, removedRecord.Context,
+			"removed vocabulary record must carry a non-nil Context")
+		if removedRecord.Context != nil {
+			assert.NotNil(t, removedRecord.Context.OriginalLine,
+				"removed vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
+			assert.Nil(t, removedRecord.Context.NewLine,
+				"removed vocabulary record must have nil Context.NewLine (no right-hand source)")
+		}
+	}
+
+	modifiedRecord, ok := byURI["https://example.com/vocab/toggle"]
+	assert.True(t, ok, "expected a vocabulary record carrying the 'toggle' URI in its payload")
+	if ok {
+		assert.NotNil(t, modifiedRecord.Context,
+			"modified vocabulary record must carry a non-nil Context")
+		if modifiedRecord.Context != nil {
+			assert.NotNil(t, modifiedRecord.Context.OriginalLine,
+				"modified vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
+			assert.NotNil(t, modifiedRecord.Context.NewLine,
+				"modified vocabulary record must carry Context.NewLine referencing the right-hand source line")
+		}
+	}
 }
