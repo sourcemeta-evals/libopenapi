@@ -361,3 +361,59 @@ $vocabulary:
 		}
 	}
 }
+
+// TestEvalonGolden_Schema_Vocabulary_QuotedBoolFormsDefaultToFalse asserts
+// that $vocabulary values whose scalar carries a non-plain YAML style (single
+// quotes, double quotes, or an explicit `!!bool`-with-quotes combination)
+// silently default to `false`, while plain lowercase `true` and its explicit
+// `!!bool true` unquoted-tagged counterpart both remain `true`. This locks in
+// the "canonical JSON boolean scalar" contract by pinning the two failure
+// modes an implementation can drift into: accepting any bool-tagged value
+// without checking the scalar's style, or accepting any quoted `"true"`
+// regardless of tag.
+func TestEvalonGolden_Schema_Vocabulary_QuotedBoolFormsDefaultToFalse(t *testing.T) {
+	yml := `type: object
+$vocabulary:
+  "https://example.com/vocab/plain-true": true
+  "https://example.com/vocab/bool-tagged-plain": !!bool true
+  "https://example.com/vocab/bool-tagged-double-quoted": !!bool "true"
+  "https://example.com/vocab/bool-tagged-single-quoted": !!bool 'true'
+  "https://example.com/vocab/double-quoted": "true"
+  "https://example.com/vocab/single-quoted": 'true'`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err, "BuildModel must succeed on the $vocabulary fixture")
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err, "Schema.Build must succeed on the $vocabulary fixture and not error on a quoted scalar")
+
+	assert.NotNil(t, sch.Vocabulary.Value, "Vocabulary must be populated")
+	assert.Equal(t, 6, sch.Vocabulary.Value.Len())
+
+	for k, v := range sch.Vocabulary.Value.FromOldest() {
+		switch k.Value {
+		case "https://example.com/vocab/plain-true":
+			assert.True(t, v.Value,
+				"a plain unquoted true entry must remain true")
+		case "https://example.com/vocab/bool-tagged-plain":
+			assert.True(t, v.Value,
+				"an explicit !!bool tag on a plain unquoted true must remain true; the tag alone does not force quoting")
+		case "https://example.com/vocab/bool-tagged-double-quoted":
+			assert.False(t, v.Value,
+				"a double-quoted \"true\" must default to false even when tagged !!bool; implementations that only check the tag without inspecting scalar style incorrectly return true here")
+		case "https://example.com/vocab/bool-tagged-single-quoted":
+			assert.False(t, v.Value,
+				"a single-quoted 'true' must default to false even when tagged !!bool; implementations that only check the tag without inspecting scalar style incorrectly return true here")
+		case "https://example.com/vocab/double-quoted":
+			assert.False(t, v.Value,
+				"an untagged double-quoted \"true\" is a string, not a boolean, and must default to false")
+		case "https://example.com/vocab/single-quoted":
+			assert.False(t, v.Value,
+				"an untagged single-quoted 'true' is a string, not a boolean, and must default to false")
+		}
+	}
+}
