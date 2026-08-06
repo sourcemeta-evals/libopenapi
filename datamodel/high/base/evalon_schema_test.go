@@ -65,3 +65,70 @@ func TestEvalonGolden_NewSchema_JSONSchema202012Keywords_Empty(t *testing.T) {
 	assert.Nil(t, highSchema.ContentSchema, "ContentSchema must be nil when absent, not a spurious proxy")
 	assert.Nil(t, highSchema.Vocabulary, "Vocabulary must be nil when absent")
 }
+
+// TestEvalonGolden_NewSchema_JSONYAMLKeywordSerialization pins the exact
+// JSON and YAML top-level keys emitted for the five new/adjacent high-level
+// Schema fields ($comment, contentSchema, $vocabulary, contentEncoding,
+// contentMediaType) so that a struct-tag mistake affecting only the
+// serialized key names (not projected Go field values) is caught even when
+// projection-only tests would otherwise pass.
+func TestEvalonGolden_NewSchema_JSONYAMLKeywordSerialization(t *testing.T) {
+	yml := `type: object
+$comment: an example comment
+contentEncoding: base64
+contentMediaType: application/json
+contentSchema:
+  type: array
+$vocabulary:
+  https://example.com/vocab/core: true`
+
+	highSchema := getHighSchema(t, yml)
+
+	yamlBytes, err := highSchema.Render()
+	assert.NoError(t, err, "Render must succeed for a populated high-level Schema")
+	yamlOut := string(yamlBytes)
+
+	// YAML output must carry all five case-exact top-level keys.
+	assert.Contains(t, yamlOut, "$comment:",
+		"YAML output must use $comment as the top-level key for the Comment field")
+	assert.Contains(t, yamlOut, "contentEncoding:",
+		"YAML output must use contentEncoding as the top-level key for ContentEncoding")
+	assert.Contains(t, yamlOut, "contentMediaType:",
+		"YAML output must use contentMediaType as the top-level key for ContentMediaType")
+	assert.Contains(t, yamlOut, "contentSchema:",
+		"YAML output must use contentSchema as the top-level key for ContentSchema")
+	assert.Contains(t, yamlOut, "$vocabulary:",
+		"YAML output must use $vocabulary as the top-level key for Vocabulary")
+
+	// YAML output must NOT carry any of the common misnamed alias forms.
+	assert.NotRegexp(t, `(?m)^comment:`, yamlOut,
+		"YAML output must not emit an alias 'comment' key without the leading $ prefix")
+	assert.NotRegexp(t, `(?m)^vocabulary:`, yamlOut,
+		"YAML output must not emit an alias 'vocabulary' key without the leading $ prefix")
+	assert.NotContains(t, yamlOut, "ContentSchema:",
+		"YAML output must not emit ContentSchema in PascalCase")
+
+	jsonBytes, err := highSchema.MarshalJSON()
+	assert.NoError(t, err, "MarshalJSON must succeed for a populated high-level Schema")
+	jsonOut := string(jsonBytes)
+
+	// JSON output must carry all five case-exact top-level keys.
+	assert.Contains(t, jsonOut, `"$comment"`,
+		`JSON output must use "$comment" as the top-level key for the Comment field`)
+	assert.Contains(t, jsonOut, `"contentEncoding"`,
+		`JSON output must use "contentEncoding" as the top-level key for ContentEncoding`)
+	assert.Contains(t, jsonOut, `"contentMediaType"`,
+		`JSON output must use "contentMediaType" as the top-level key for ContentMediaType`)
+	assert.Contains(t, jsonOut, `"contentSchema"`,
+		`JSON output must use "contentSchema" as the top-level key for ContentSchema`)
+	assert.Contains(t, jsonOut, `"$vocabulary"`,
+		`JSON output must use "$vocabulary" as the top-level key for Vocabulary`)
+
+	// JSON output must not carry the common misnamed alias forms.
+	assert.NotContains(t, jsonOut, `"comment"`,
+		`JSON output must not emit an alias "comment" key without the leading $ prefix`)
+	assert.NotContains(t, jsonOut, `"vocabulary"`,
+		`JSON output must not emit an alias "vocabulary" key without the leading $ prefix`)
+	assert.NotContains(t, jsonOut, `"ContentSchema"`,
+		`JSON output must not emit ContentSchema in PascalCase`)
+}
