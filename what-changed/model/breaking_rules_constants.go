@@ -139,7 +139,6 @@ const (
 	PropSchema               = "schema"
 	PropScopes               = "scopes"
 	PropSecurity             = "security"
-	PropSelf                 = "$self"
 	PropSerializedValue      = "serializedValue"
 	PropServer               = "server"
 	PropServers              = "servers"

@@ -53,7 +53,7 @@ type PathItemRules struct {
 	Head                 *BreakingChangeRule `json:"head,omitempty" yaml:"head,omitempty"`
 	Patch                *BreakingChangeRule `json:"patch,omitempty" yaml:"patch,omitempty"`
 	Trace                *BreakingChangeRule `json:"trace,omitempty" yaml:"trace,omitempty"`
-	Query                *BreakingChangeRule `json:"query" yaml:"query,omitempty"`
+	Query                *BreakingChangeRule `json:"query,omitempty" yaml:"query,omitempty"`
 	AdditionalOperations *BreakingChangeRule `json:"additionalOperations,omitempty" yaml:"additionalOperations,omitempty"`
 	Servers              *BreakingChangeRule `json:"servers,omitempty" yaml:"servers,omitempty"`
 	Parameters           *BreakingChangeRule `json:"parameters,omitempty" yaml:"parameters,omitempty"`
@@ -244,7 +244,7 @@ type SecuritySchemeRules struct {
 	Scheme            *BreakingChangeRule `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 	BearerFormat      *BreakingChangeRule `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
 	OpenIDConnectURL  *BreakingChangeRule `json:"openIdConnectUrl,omitempty" yaml:"openIdConnectUrl,omitempty"`
-	OAuth2MetadataURL *BreakingChangeRule `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
+	OAuth2MetadataUrl *BreakingChangeRule `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
 	Flows             *BreakingChangeRule `json:"flows,omitempty" yaml:"flows,omitempty"`
 }
 

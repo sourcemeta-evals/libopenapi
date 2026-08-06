@@ -375,7 +375,7 @@ func buildDefaultRules() *BreakingRulesConfig {
 			Scheme:            rule(true, true, true),
 			BearerFormat:      rule(false, false, false),
 			OpenIDConnectURL:  rule(false, false, false),
-			OAuth2MetadataURL: rule(false, false, false),
+			OAuth2MetadataUrl: rule(false, false, false),
 			Flows:             rule(false, false, true),
 		},
 
