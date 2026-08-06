@@ -1293,3 +1293,56 @@ itemEncoding:
 	assert.True(t, sawRemovedKey, "expected one ObjectRemoved record for itemEncoding key 'removed-entry'")
 	assert.True(t, sawAddedKey, "expected one ObjectAdded record for itemEncoding key 'added-entry'")
 }
+
+// TestEvalonGolden_ItemEncodingSameKeyDifferentValueDetected exercises the
+// manual ItemEncoding map-diff loop's MODIFICATION branch: two MediaTypes
+// with the SAME encoding key but DIFFERENT encoding values must produce a
+// nested EncodingChanges record under ItemEncodingChanges for that key. This
+// closes coverage for the low.GenerateHashString-based equality check and the
+// mc.ItemEncodingChanges[k] = CompareEncoding(...) assignment in media_type.go
+// that add/remove tests alone cannot exercise.
+func TestEvalonGolden_ItemEncodingSameKeyDifferentValueDetected(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `schema:
+  type: array
+itemEncoding:
+  shared-key:
+    contentType: application/json`
+
+	right := `schema:
+  type: array
+itemEncoding:
+  shared-key:
+    contentType: application/xml`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode))
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode))
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	require.NoError(t, low.BuildModel(&lNode, &lMT))
+	require.NoError(t, low.BuildModel(&rNode, &rMT))
+	require.NoError(t, lMT.Build(ctx, nil, lNode.Content[0], lIdx))
+	require.NoError(t, rMT.Build(ctx, nil, rNode.Content[0], rIdx))
+
+	changes := CompareMediaTypes(&lMT, &rMT)
+	require.NotNil(t, changes, "same-key differing-value ItemEncoding must produce a non-nil MediaTypeChanges")
+	require.NotNil(t, changes.ItemEncodingChanges, "ItemEncodingChanges must be populated when the shared key's encoding value differs")
+
+	nested, ok := changes.ItemEncodingChanges["shared-key"]
+	require.True(t, ok, "expected a nested EncodingChanges record under the shared key")
+	require.NotNil(t, nested)
+	assert.Greater(t, nested.TotalChanges(), 0,
+		"nested EncodingChanges must contain at least one change reflecting the ContentType difference")
+}
