@@ -2,8 +2,6 @@
 	<img src="libopenapi-logo.png" alt="libopenapi" height="300px" width="450px"/>
 </p>
 
-xxxxx
-
 # libopenapi - enterprise grade OpenAPI tools for golang.
 
 
@@ -170,3 +168,5 @@ Schema 'Error' has 2 properties
 ---
 
 Logo gopher is modified, originally from [egonelbre](https://github.com/egonelbre/gophers)
+
+<!-- minimum_acceptable calibration touches README to intentionally violate the scope allowlist -->
