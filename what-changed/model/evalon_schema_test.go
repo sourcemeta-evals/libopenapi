@@ -12,6 +12,7 @@ import (
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v4"
 )
 
@@ -1565,4 +1566,63 @@ components:
 				"modified vocabulary record must carry Context.NewLine referencing the right-hand source line")
 		}
 	}
+}
+
+// TestEvalonGolden_CompareSchemas_ContentSchema_NestedBreakingAggregated asserts
+// that when the nested contentSchema comparison produces a breaking change (a
+// type change here), the outer SchemaChanges.TotalBreakingChanges() aggregates
+// that nested count via the `if s.ContentSchemaChanges != nil` block in the
+// outer TotalBreakingChanges function. Removing only that block leaves the
+// nested ContentSchemaChanges.TotalBreakingChanges() unchanged but silently
+// drops the count from the outer aggregate, misreporting the overall breaking
+// impact of the diff.
+func TestEvalonGolden_CompareSchemas_ContentSchema_NestedBreakingAggregated(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `openapi: "3.1.0"
+info:
+  title: left
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object`
+
+	right := `openapi: "3.1.0"
+info:
+  title: right
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	require.NotNil(t, changes)
+	require.NotNil(t, changes.ContentSchemaChanges, "nested contentSchema modification must populate ContentSchemaChanges")
+
+	nestedBreaking := changes.ContentSchemaChanges.TotalBreakingChanges()
+	assert.Greater(t, nestedBreaking, 0,
+		"the nested contentSchema type change must register as breaking on the inner ContentSchemaChanges")
+
+	outerBreaking := changes.TotalBreakingChanges()
+	assert.GreaterOrEqual(t, outerBreaking, nestedBreaking,
+		"outer SchemaChanges.TotalBreakingChanges must aggregate ContentSchemaChanges.TotalBreakingChanges via the nested-recursion block")
 }
