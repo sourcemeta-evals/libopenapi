@@ -194,43 +194,6 @@ func (s *Schema) Hash() [32]byte {
 // The hash map means each schema is hashed once, and then the hash is reused for quick equality checking.
 var SchemaQuickHashMap sync.Map
 
-// JSON Schema 2020-12 Notes
-//
-// The Schema struct supports the JSON Schema 2020-12 keywords introduced
-// in this change: $comment, contentSchema, and $vocabulary. Each of these
-// keywords has slightly different semantics that downstream consumers
-// should be aware of:
-//
-// $comment is a documentation-only annotation that has no impact on
-// validation or schema interpretation. It is therefore non-breaking under
-// any change-detection rule, and is hashed as a plain string field.
-//
-// contentSchema is itself a JSON Schema, applied to the decoded content
-// of a string that has been interpreted via contentMediaType. Because it
-// is a nested schema, it is wrapped in a SchemaProxy and its hash and
-// change-detection are recursive.
-//
-// $vocabulary is a map of vocabulary URIs to boolean enable flags. It is
-// only meaningful in meta-schemas, and changes are tracked at the entry
-// level (added, removed, value-modified) rather than as a single
-// whole-map change.
-//
-// The above keywords are exposed on both the low-level Schema struct
-// (with full NodeReference wrappers) and the high-level Schema struct
-// (with simplified Go types). The low-level form preserves YAML node
-// references for source-position mapping, while the high-level form is
-// intended for direct programmatic use.
-//
-// Future maintainers extending support for additional 2020-12 keywords
-// (e.g. $defs, prefixItems, dependentSchemas, dependentRequired) should
-// follow the same three-layer pattern: low-level field with NodeReference
-// wrapper, high-level field with simplified type, and what-changed
-// integration with appropriate breaking-rule semantics. The hash()
-// function should also be updated to include the new field with a
-// deterministic encoding so equivalent schemas in different YAML orders
-// hash identically.
-//
-
 func (s *Schema) hash(quick bool) [32]byte {
 	if s == nil {
 		return [32]byte{}
@@ -548,22 +511,28 @@ func (s *Schema) hash(quick bool) [32]byte {
 	}
 	if !s.Comment.IsEmpty() {
 		sb.WriteString(s.Comment.Value)
-		sb.WriteByte(',')
+		sb.WriteByte('|')
 	}
-	if !s.ContentSchema.IsEmpty() && s.ContentSchema.ValueNode != nil {
-		sb.WriteString(s.ContentSchema.ValueNode.Tag)
-		for _, n := range s.ContentSchema.ValueNode.Content {
-			sb.WriteByte(':')
-			sb.WriteString(n.Value)
-		}
-		sb.WriteByte(',')
+	if !s.ContentSchema.IsEmpty() {
+		sb.WriteString(low.GenerateHashString(s.ContentSchema.Value))
+		sb.WriteByte('|')
 	}
 	if s.Vocabulary.Value != nil {
+		// sort vocabulary keys for deterministic hashing
+		// pre-allocate with known size for better memory efficiency
+		vocabSize := orderedmap.Len(s.Vocabulary.Value)
+		vocabKeys := make([]string, 0, vocabSize)
+		vocabMap := make(map[string]bool, vocabSize)
 		for k, v := range s.Vocabulary.Value.FromOldest() {
-			sb.WriteString(k.Value)
-			sb.WriteByte('=')
-			sb.WriteString(fmt.Sprint(v.Value))
-			sb.WriteByte(',')
+			vocabKeys = append(vocabKeys, k.Value)
+			vocabMap[k.Value] = v.Value
+		}
+		sort.Strings(vocabKeys)
+		for _, k := range vocabKeys {
+			sb.WriteString(k)
+			sb.WriteByte(':')
+			sb.WriteString(fmt.Sprint(vocabMap[k]))
+			sb.WriteByte('|')
 		}
 	}
 
@@ -928,45 +897,50 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	}
 
 	// handle $comment if set. (JSON Schema 2020-12)
-	// Using manual iteration instead of FindKeyNodeFullTop
-	for i := 0; i < len(root.Content)-1; i += 2 {
-		if root.Content[i].Value == "$comment" {
-			commentNode := root.Content[i+1]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == CommentLabel {
 			s.Comment = low.NodeReference[string]{
-				Value: commentNode.Value, ValueNode: commentNode,
+				Value:     root.Content[i+1].Value,
+				KeyNode:   root.Content[i],
+				ValueNode: root.Content[i+1],
 			}
 			break
 		}
 	}
 
 	// handle $vocabulary if set. (JSON Schema 2020-12 - typically in meta-schemas)
-	// Using manual iteration instead of FindKeyNodeFullTop
-	for i := 0; i < len(root.Content)-1; i += 2 {
-		if root.Content[i].Value == "$vocabulary" {
-			vocabNode := root.Content[i+1]
-			if utils.IsNodeMap(vocabNode) {
-				vocabularyMap := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
-				var currentKey *yaml.Node
-				for j, node := range vocabNode.Content {
-					if j%2 == 0 {
-						currentKey = node
-						continue
-					}
-					boolVal, _ := strconv.ParseBool(node.Value)
-					vocabularyMap.Set(low.KeyReference[string]{
-						KeyNode: currentKey,
-						Value:   currentKey.Value,
-					}, low.ValueReference[bool]{
-						Value:     boolVal,
-						ValueNode: node,
-					})
-				}
-				s.Vocabulary = low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]]{
-					Value:     vocabularyMap,
-					ValueNode: vocabNode,
-				}
+	_, vocabLabel, vocabNode := utils.FindKeyNodeFullTop(VocabularyLabel, root.Content)
+	if vocabNode != nil && utils.IsNodeMap(vocabNode) {
+		vocabularyMap := orderedmap.New[low.KeyReference[string], low.ValueReference[bool]]()
+		var currentKey *yaml.Node
+		for i, node := range vocabNode.Content {
+			if i%2 == 0 {
+				currentKey = node
+				continue
 			}
-			break
+			// $vocabulary values must be canonical JSON boolean scalars (unquoted
+			// `true` or `false`, either bare or explicitly `!!bool`-tagged so long
+			// as the scalar itself remains plain). Non-boolean scalars (numbers,
+			// strings, quoted booleans), block-style scalars (literal `|` or
+			// folded `>`), and alternative YAML boolean spellings like `TRUE`,
+			// `yes`, `on` are silently treated as false per the task contract.
+			var boolVal bool
+			nonPlainStyles := yaml.SingleQuotedStyle | yaml.DoubleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
+			if utils.IsNodeBoolValue(node) && node.Style&nonPlainStyles == 0 && node.Value == "true" {
+				boolVal = true
+			}
+			vocabularyMap.Set(low.KeyReference[string]{
+				KeyNode: currentKey,
+				Value:   currentKey.Value,
+			}, low.ValueReference[bool]{
+				Value:     boolVal,
+				ValueNode: node,
+			})
+		}
+		s.Vocabulary = low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]]{
+			Value:     vocabularyMap,
+			KeyNode:   vocabLabel,
+			ValueNode: vocabNode,
 		}
 	}
 
@@ -1172,7 +1146,7 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 	_, unevalItemsLabel, unevalItemsValue := utils.FindKeyNodeFullTop(UnevaluatedItemsLabel, root.Content)
 	_, unevalPropsLabel, unevalPropsValue := utils.FindKeyNodeFullTop(UnevaluatedPropertiesLabel, root.Content)
 	_, addPropsLabel, addPropsValue := utils.FindKeyNodeFullTop(AdditionalPropertiesLabel, root.Content)
-	_, contentSchLabel, contentSchValue := utils.FindKeyNodeFullTop("contentSchema", root.Content)
+	_, contentSchLabel, contentSchValue := utils.FindKeyNodeFullTop(ContentSchemaLabel, root.Content)
 
 	errorChan := make(chan error)
 	allOfChan := make(chan schemaProxyBuildResult)
@@ -1402,15 +1376,12 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 			ValueNode: addPropsValue,
 		}
 	}
-	// Build contentSchema synchronously (not using goroutines)
 	if contentSchValue != nil {
-		proxy := &SchemaProxy{}
-		proxy.kn = contentSchLabel
-		proxy.vn = contentSchValue
-		proxy.idx = idx
-		proxy.ctx = ctx
+		contentProxy := new(SchemaProxy)
+		_ = contentProxy.Build(ctx, contentSchLabel, contentSchValue, idx)
 		s.ContentSchema = low.NodeReference[*SchemaProxy]{
-			Value:     proxy,
+			Value:     contentProxy,
+			KeyNode:   contentSchLabel,
 			ValueNode: contentSchValue,
 		}
 	}
