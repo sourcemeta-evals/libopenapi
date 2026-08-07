@@ -1259,6 +1259,8 @@ components:
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	if changes != nil {
+		assert.Nil(t, changes.ContentSchemaChanges,
+			"identical contentSchema values must not emit a nested change container")
 		for _, change := range changes.GetAllChanges() {
 			assert.NotEqual(t, PropContentSchema, change.Property,
 				"identical contentSchema values must not emit a change record")
