@@ -188,6 +188,12 @@ func (s *SchemaChanges) GetAllChanges() []*Change {
 	if s.ExtensionChanges != nil {
 		changes = append(changes, s.ExtensionChanges.GetAllChanges()...)
 	}
+	if s.ContentSchemaChanges != nil {
+		changes = append(changes, s.ContentSchemaChanges.GetAllChanges()...)
+	}
+	if len(s.VocabularyChanges) > 0 {
+		changes = append(changes, s.VocabularyChanges...)
+	}
 	return changes
 }
 
@@ -2047,8 +2053,22 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 	// pre-allocate result slice with reasonable capacity
 	var vocabChanges []*Change
 
+	// iterate in a deterministic (sorted URI) order so emitted change records
+	// are reproducible across runs regardless of native Go map iteration order
+	lKeys := make([]string, 0, len(lVocabMap))
+	for uri := range lVocabMap {
+		lKeys = append(lKeys, uri)
+	}
+	sort.Strings(lKeys)
+	rKeys := make([]string, 0, len(rVocabMap))
+	for uri := range rVocabMap {
+		rKeys = append(rKeys, uri)
+	}
+	sort.Strings(rKeys)
+
 	// check for removed or modified vocabularies
-	for uri, lVal := range lVocabMap {
+	for _, uri := range lKeys {
+		lVal := lVocabMap[uri]
 		if rVal, ok := rVocabMap[uri]; ok {
 			// vocabulary exists in both - check if value changed
 			if lVal != rVal {
@@ -2071,7 +2091,7 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 			c := &Change{
 				Property:       base.VocabularyLabel,
 				ChangeType:     PropertyRemoved,
-				Original:       uri,
+				Original:       fmt.Sprintf("%s=%v", uri, lVal),
 				Breaking:       BreakingRemoved(CompSchema, PropVocabulary),
 				OriginalObject: lVocabMap,
 			}
@@ -2083,13 +2103,14 @@ func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[stri
 	}
 
 	// check for added vocabularies
-	for uri := range rVocabMap {
+	for _, uri := range rKeys {
+		rVal := rVocabMap[uri]
 		if _, ok := lVocabMap[uri]; !ok {
 			// vocabulary was added
 			c := &Change{
 				Property:   base.VocabularyLabel,
 				ChangeType: PropertyAdded,
-				New:        uri,
+				New:        fmt.Sprintf("%s=%v", uri, rVal),
 				Breaking:   BreakingAdded(CompSchema, PropVocabulary),
 				NewObject:  rVocabMap,
 			}

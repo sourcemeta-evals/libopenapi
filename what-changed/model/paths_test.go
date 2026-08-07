@@ -46,6 +46,14 @@ func TestComparePaths_v2(t *testing.T) {
 }
 
 func TestComparePaths_v2_ModifyOp(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
 	left := `/fresh/cake:
   get:
     description: a thing?
@@ -202,8 +210,14 @@ func TestComparePaths_v3(t *testing.T) {
 }
 
 func TestComparePaths_v3_ModifyOp(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
 	// Clear hash cache to ensure deterministic results in concurrent test environments
 	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
 
 	left := `/fresh/cake:
   get:
