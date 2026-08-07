@@ -142,6 +142,51 @@ description: A regular schema without $vocabulary`
 	assert.Nil(t, sch.Vocabulary.Value)
 }
 
+// TestEvalonGolden_Schema_Vocabulary_NonMapScalarIgnored tests that a
+// `$vocabulary` value which is a scalar rather than a YAML mapping is
+// ignored entirely, leaving the vocabulary unset instead of producing an
+// empty or garbage map.
+func TestEvalonGolden_Schema_Vocabulary_NonMapScalarIgnored(t *testing.T) {
+	yml := `type: object
+$vocabulary: true`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Nil(t, sch.Vocabulary.Value,
+		"a scalar $vocabulary value must leave the vocabulary unset")
+}
+
+// TestEvalonGolden_Schema_Vocabulary_NonMapSequenceIgnored tests that a
+// `$vocabulary` value which is a YAML sequence rather than a mapping is
+// ignored entirely, leaving the vocabulary unset.
+func TestEvalonGolden_Schema_Vocabulary_NonMapSequenceIgnored(t *testing.T) {
+	yml := `type: object
+$vocabulary:
+  - https://example.com/vocab/core
+  - https://example.com/vocab/extra`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	assert.Nil(t, sch.Vocabulary.Value,
+		"a sequence $vocabulary value must leave the vocabulary unset")
+}
+
 // TestEvalonGolden_Schema_Vocabulary_NonBooleanScalarsDefaultToFalse tests
 // that $vocabulary map values which are not actual YAML boolean scalars
 // (numbers, unquoted alternative truthy tokens, etc.) silently default to
