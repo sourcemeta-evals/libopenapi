@@ -4,9 +4,12 @@
 package base
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v4"
 )
 
 // TestEvalonGolden_NewSchema_JSONSchema202012Keywords verifies that NewSchema
@@ -71,7 +74,9 @@ func TestEvalonGolden_NewSchema_JSONSchema202012Keywords_Empty(t *testing.T) {
 // Schema fields ($comment, contentSchema, $vocabulary, contentEncoding,
 // contentMediaType) so that a struct-tag mistake affecting only the
 // serialized key names (not projected Go field values) is caught even when
-// projection-only tests would otherwise pass.
+// projection-only tests would otherwise pass. The rendered output is
+// unmarshaled into a root map so that presence assertions verify TOP-LEVEL
+// placement, not merely substring occurrence anywhere in nested content.
 func TestEvalonGolden_NewSchema_JSONYAMLKeywordSerialization(t *testing.T) {
 	yml := `type: object
 $comment: an example comment
@@ -85,50 +90,46 @@ $vocabulary:
 	highSchema := getHighSchema(t, yml)
 
 	yamlBytes, err := highSchema.Render()
-	assert.NoError(t, err, "Render must succeed for a populated high-level Schema")
-	yamlOut := string(yamlBytes)
+	require.NoError(t, err, "Render must succeed for a populated high-level Schema")
 
-	// YAML output must carry all five case-exact top-level keys.
-	assert.Contains(t, yamlOut, "$comment:",
-		"YAML output must use $comment as the top-level key for the Comment field")
-	assert.Contains(t, yamlOut, "contentEncoding:",
-		"YAML output must use contentEncoding as the top-level key for ContentEncoding")
-	assert.Contains(t, yamlOut, "contentMediaType:",
-		"YAML output must use contentMediaType as the top-level key for ContentMediaType")
-	assert.Contains(t, yamlOut, "contentSchema:",
-		"YAML output must use contentSchema as the top-level key for ContentSchema")
-	assert.Contains(t, yamlOut, "$vocabulary:",
-		"YAML output must use $vocabulary as the top-level key for Vocabulary")
+	var yamlRoot map[string]any
+	require.NoError(t, yaml.Unmarshal(yamlBytes, &yamlRoot),
+		"rendered YAML must be parseable back into a root map")
 
-	// YAML output must NOT carry any of the common misnamed alias forms.
-	assert.NotRegexp(t, `(?m)^comment:`, yamlOut,
-		"YAML output must not emit an alias 'comment' key without the leading $ prefix")
-	assert.NotRegexp(t, `(?m)^vocabulary:`, yamlOut,
-		"YAML output must not emit an alias 'vocabulary' key without the leading $ prefix")
-	assert.NotContains(t, yamlOut, "ContentSchema:",
-		"YAML output must not emit ContentSchema in PascalCase")
+	// YAML output must carry all five case-exact keys at the TOP level.
+	requiredKeys := []string{"$comment", "contentEncoding", "contentMediaType", "contentSchema", "$vocabulary"}
+	for _, key := range requiredKeys {
+		_, present := yamlRoot[key]
+		assert.True(t, present,
+			"YAML root map must contain the top-level key %q (rendered output: %s)", key, string(yamlBytes))
+	}
+
+	// YAML output must NOT carry any of the common misnamed alias forms at the root.
+	forbiddenKeys := []string{"comment", "vocabulary", "ContentSchema", "ContentEncoding", "ContentMediaType"}
+	for _, key := range forbiddenKeys {
+		_, present := yamlRoot[key]
+		assert.False(t, present,
+			"YAML root map must not contain the alias key %q", key)
+	}
 
 	jsonBytes, err := highSchema.MarshalJSON()
-	assert.NoError(t, err, "MarshalJSON must succeed for a populated high-level Schema")
-	jsonOut := string(jsonBytes)
+	require.NoError(t, err, "MarshalJSON must succeed for a populated high-level Schema")
 
-	// JSON output must carry all five case-exact top-level keys.
-	assert.Contains(t, jsonOut, `"$comment"`,
-		`JSON output must use "$comment" as the top-level key for the Comment field`)
-	assert.Contains(t, jsonOut, `"contentEncoding"`,
-		`JSON output must use "contentEncoding" as the top-level key for ContentEncoding`)
-	assert.Contains(t, jsonOut, `"contentMediaType"`,
-		`JSON output must use "contentMediaType" as the top-level key for ContentMediaType`)
-	assert.Contains(t, jsonOut, `"contentSchema"`,
-		`JSON output must use "contentSchema" as the top-level key for ContentSchema`)
-	assert.Contains(t, jsonOut, `"$vocabulary"`,
-		`JSON output must use "$vocabulary" as the top-level key for Vocabulary`)
+	var jsonRoot map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &jsonRoot),
+		"rendered JSON must be parseable back into a root map")
 
-	// JSON output must not carry the common misnamed alias forms.
-	assert.NotContains(t, jsonOut, `"comment"`,
-		`JSON output must not emit an alias "comment" key without the leading $ prefix`)
-	assert.NotContains(t, jsonOut, `"vocabulary"`,
-		`JSON output must not emit an alias "vocabulary" key without the leading $ prefix`)
-	assert.NotContains(t, jsonOut, `"ContentSchema"`,
-		`JSON output must not emit ContentSchema in PascalCase`)
+	// JSON output must carry all five case-exact keys at the TOP level.
+	for _, key := range requiredKeys {
+		_, present := jsonRoot[key]
+		assert.True(t, present,
+			"JSON root map must contain the top-level key %q (rendered output: %s)", key, string(jsonBytes))
+	}
+
+	// JSON output must not carry the common misnamed alias forms at the root.
+	for _, key := range forbiddenKeys {
+		_, present := jsonRoot[key]
+		assert.False(t, present,
+			"JSON root map must not contain the alias key %q", key)
+	}
 }
