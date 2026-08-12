@@ -1346,3 +1346,63 @@ itemEncoding:
 	assert.Greater(t, nested.TotalChanges(), 0,
 		"nested EncodingChanges must contain at least one change reflecting the ContentType difference")
 }
+
+// TestEvalonGolden_QueryRemovedExactPayload mirrors the added-Query golden
+// test for the left-only direction: the PropertyRemoved record for query
+// must carry the left-hand Query operation exactly as OriginalObject, not
+// nil or an arbitrary substitute, with no NewObject and the default
+// breaking polarity (Query.Removed is true).
+func TestEvalonGolden_QueryRemovedExactPayload(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `get:
+  summary: Get resources
+query:
+  summary: Query resources
+  operationId: queryResources`
+
+	right := `get:
+  summary: Get resources`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "left PathItem BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "right PathItem BuildModel must succeed")
+
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "left PathItem Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "right PathItem Build must succeed")
+
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+
+	var queryRemoved *Change
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property == v3.QueryLabel && ch.ChangeType == PropertyRemoved {
+			queryRemoved = ch
+			break
+		}
+	}
+	assert.NotNil(t, queryRemoved, "expected a PropertyRemoved change for v3.QueryLabel")
+	if queryRemoved == nil {
+		return
+	}
+	assert.Same(t, lPath.Query.Value, queryRemoved.OriginalObject,
+		"OriginalObject must be the left-hand Query operation exactly, not an arbitrary non-nil value")
+	assert.Nil(t, queryRemoved.NewObject,
+		"NewObject must be nil when query appears only on the left side")
+	assert.True(t, queryRemoved.Breaking,
+		"removing query is breaking by default (Query.Removed is true in the default polarity table)")
+}
