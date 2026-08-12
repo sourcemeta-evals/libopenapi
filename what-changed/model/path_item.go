@@ -616,7 +616,7 @@ func compareOpenAPIPathItem(lPath, rPath *v3.PathItem, changes *[]*Change, pc *P
 			nil, rPath.Query.ValueNode, BreakingAdded(CompPathItem, PropQuery), nil, rPath.Query.Value)
 	}
 
-	// additionalOperations (OpenAPI 3.2+)
+	// additionalProperties (OpenAPI 3.2+)
 	if lPath.AdditionalOperations.Value != nil && rPath.AdditionalOperations.Value == nil {
 		CreateChange(changes, PropertyRemoved, v3.AdditionalOperationsLabel,
 			lPath.AdditionalOperations.ValueNode, nil, BreakingRemoved(CompPathItem, PropAdditionalOperations), lPath.AdditionalOperations.Value, nil)
