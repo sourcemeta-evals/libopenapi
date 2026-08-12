@@ -1406,3 +1406,79 @@ query:
 	assert.True(t, queryRemoved.Breaking,
 		"removing query is breaking by default (Query.Removed is true in the default polarity table)")
 }
+
+// TestEvalonGolden_AdditionalOperationsSharedKeyModificationDetected hardens
+// the shared-key matching path with keys whose operations actually differ.
+// Left and right share two keys in swapped positions: UNCHANGED is identical
+// on both sides and must produce no nested record, while CHANGED differs in
+// summary and must produce a nested OperationChanges entry under its own key
+// whose modification reflects the real left/right values. Rejects
+// implementations that skip shared-key comparison entirely or match a shared
+// key against the wrong counterpart from the other side.
+func TestEvalonGolden_AdditionalOperationsSharedKeyModificationDetected(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `additionalOperations:
+  UNCHANGED:
+    summary: Stable operation
+    operationId: stableOp
+  CHANGED:
+    summary: Original summary
+    operationId: changedOp`
+
+	right := `additionalOperations:
+  CHANGED:
+    summary: Updated summary
+    operationId: changedOp
+  UNCHANGED:
+    summary: Stable operation
+    operationId: stableOp`
+
+	var lNode, rNode yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(left), &lNode), "left fixture must parse")
+	require.NoError(t, yaml.Unmarshal([]byte(right), &rNode), "right fixture must parse")
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	require.NoError(t, low.BuildModel(&lNode, &lPath), "left PathItem BuildModel must succeed")
+	require.NoError(t, low.BuildModel(&rNode, &rPath), "right PathItem BuildModel must succeed")
+
+	require.NoError(t, lPath.Build(ctx, nil, lNode.Content[0], lIdx), "left PathItem Build must succeed")
+	require.NoError(t, rPath.Build(ctx, nil, rNode.Content[0], rIdx), "right PathItem Build must succeed")
+
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+
+	for _, ch := range changes.GetAllChanges() {
+		assert.NotEqual(t, v3.AdditionalOperationsLabel, ch.Property,
+			"no add/remove record expected: both keys exist on both sides")
+	}
+
+	_, unchangedPresent := changes.AdditionalOperationChanges["UNCHANGED"]
+	assert.False(t, unchangedPresent,
+		"the identical UNCHANGED operation must not produce a nested OperationChanges entry")
+
+	changedOperation, changedPresent := changes.AdditionalOperationChanges["CHANGED"]
+	require.True(t, changedPresent,
+		"the differing CHANGED operation must produce a nested OperationChanges entry under its own key")
+	require.NotNil(t, changedOperation)
+
+	sawSummaryModification := false
+	for _, ch := range changedOperation.GetAllChanges() {
+		if ch.ChangeType == Modified &&
+			ch.Original == "Original summary" && ch.New == "Updated summary" {
+			sawSummaryModification = true
+		}
+	}
+	assert.True(t, sawSummaryModification,
+		"the CHANGED entry must record the real summary modification (left value against right value), not a comparison against the wrong counterpart")
+}
