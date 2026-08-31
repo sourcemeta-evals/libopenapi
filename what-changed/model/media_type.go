@@ -160,9 +160,9 @@ func CompareMediaTypes(l, r *v3.MediaType) *MediaTypeChanges {
 			r.ItemSchema.ValueNode, BreakingAdded(CompMediaType, PropItemSchema), nil, r.ItemSchema.Value)
 	}
 
-	// itemEncoding
-	mc.ItemEncodingChanges = CheckMapForChanges(l.ItemEncoding.Value, r.ItemEncoding.Value,
-		&changes, v3.ItemEncodingLabel, CompareEncoding)
+	// itemEncoding - use CheckMapForChangesWithRules to support configurable breaking rules
+	mc.ItemEncodingChanges = CheckMapForChangesWithRules(l.ItemEncoding.Value, r.ItemEncoding.Value,
+		&changes, v3.ItemEncodingLabel, CompareEncoding, CompMediaType, PropItemEncoding)
 
 	mc.ExtensionChanges = CompareExtensions(l.Extensions, r.Extensions)
 	mc.PropertyChanges = NewPropertyChanges(changes)

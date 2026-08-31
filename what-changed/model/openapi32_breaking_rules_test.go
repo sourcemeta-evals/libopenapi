@@ -305,6 +305,292 @@ itemSchema:
 	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, adding itemSchema should not be breaking")
 }
 
+// TestItemEncodingConfigurableBreakingRules tests that the ItemEncoding field in MediaType
+// has configurable breaking change behavior.
+func TestItemEncodingConfigurableBreakingRules(t *testing.T) {
+	// ensure clean state
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	// Test with itemEncoding present then removed
+	left := `schema:
+  type: array
+itemEncoding:
+  file:
+    contentType: image/jpeg`
+
+	right := `schema:
+  type: array`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	_ = low.BuildModel(&lNode, &lMT)
+	_ = low.BuildModel(&rNode, &rMT)
+
+	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: removing itemEncoding should be breaking
+	changes := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 1, changes.TotalBreakingChanges(), "Removing itemEncoding should be breaking by default")
+
+	// Now configure as non-breaking
+	customConfig := &BreakingRulesConfig{
+		MediaType: &MediaTypeRules{
+			ItemEncoding: &BreakingChangeRule{
+				Added:    boolPtr(false),
+				Modified: boolPtr(false),
+				Removed:  boolPtr(false), // Override: removal is not breaking
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, removing itemEncoding should not be breaking")
+}
+
+// TestItemEncodingAddedConfigurable tests that adding itemEncoding can be configured.
+func TestItemEncodingAddedConfigurable(t *testing.T) {
+	// ensure clean state
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `schema:
+  type: array`
+
+	right := `schema:
+  type: array
+itemEncoding:
+  file:
+    contentType: image/jpeg`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lMT, rMT v3.MediaType
+	_ = low.BuildModel(&lNode, &lMT)
+	_ = low.BuildModel(&rNode, &rMT)
+
+	_ = lMT.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rMT.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: adding itemEncoding should not be breaking
+	changes := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Adding itemEncoding should not be breaking by default")
+
+	// Now configure as breaking
+	customConfig := &BreakingRulesConfig{
+		MediaType: &MediaTypeRules{
+			ItemEncoding: &BreakingChangeRule{
+				Added:    boolPtr(true), // Override: addition is breaking
+				Modified: boolPtr(false),
+				Removed:  boolPtr(true),
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareMediaTypes(&lMT, &rMT)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(), "With custom config, adding itemEncoding should be breaking")
+}
+
+// TestAdditionalOperationsAddedConfigurable tests that adding additionalOperations can be configured.
+func TestAdditionalOperationsAddedConfigurable(t *testing.T) {
+	// ensure clean state
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `get:
+  summary: Get resources`
+
+	right := `get:
+  summary: Get resources
+additionalOperations:
+  CUSTOM:
+    summary: Custom operation`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	lIdx := index.NewSpecIndexWithConfig(&lNode, index.CreateOpenAPIIndexConfig())
+	rIdx := index.NewSpecIndexWithConfig(&rNode, index.CreateOpenAPIIndexConfig())
+	ctx := context.Background()
+
+	var lPath, rPath v3.PathItem
+	_ = low.BuildModel(&lNode, &lPath)
+	_ = low.BuildModel(&rNode, &rPath)
+
+	_ = lPath.Build(ctx, nil, lNode.Content[0], lIdx)
+	_ = rPath.Build(ctx, nil, rNode.Content[0], rIdx)
+
+	// Default behavior: adding additionalOperations should not be breaking
+	changes := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Adding additionalOperations should not be breaking by default")
+
+	// Now configure as breaking
+	customConfig := &BreakingRulesConfig{
+		PathItem: &PathItemRules{
+			AdditionalOperations: &BreakingChangeRule{
+				Added:    boolPtr(true), // Override: addition is breaking
+				Modified: boolPtr(false),
+				Removed:  boolPtr(true),
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := ComparePathItems(&lPath, &rPath)
+	assert.NotNil(t, changes2)
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(), "With custom config, adding additionalOperations should be breaking")
+}
+
+// TestOAuth2MetadataUrlAddedConfigurable tests that adding oauth2MetadataUrl can be configured.
+func TestOAuth2MetadataUrlAddedConfigurable(t *testing.T) {
+	// ensure clean state
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `type: oauth2
+description: OAuth2 auth`
+
+	right := `type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	ctx := context.Background()
+
+	var lSS, rSS v3.SecurityScheme
+	_ = low.BuildModel(lNode.Content[0], &lSS)
+	_ = low.BuildModel(rNode.Content[0], &rSS)
+
+	_ = lSS.Build(ctx, nil, lNode.Content[0], nil)
+	_ = rSS.Build(ctx, nil, rNode.Content[0], nil)
+
+	// Default behavior: adding oauth2MetadataUrl should not be breaking
+	changes := CompareSecuritySchemes(&lSS, &rSS)
+	assert.NotNil(t, changes, "Changes should not be nil when oauth2MetadataUrl is added")
+	assert.Equal(t, 1, changes.TotalChanges(), "Should detect 1 change for oauth2MetadataUrl addition")
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Adding oauth2MetadataUrl should not be breaking by default")
+
+	// Now configure as breaking
+	customConfig := &BreakingRulesConfig{
+		SecurityScheme: &SecuritySchemeRules{
+			OAuth2MetadataUrl: &BreakingChangeRule{
+				Added:    boolPtr(true), // Override: addition is breaking
+				Modified: boolPtr(true),
+				Removed:  boolPtr(true),
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareSecuritySchemes(&lSS, &rSS)
+	assert.NotNil(t, changes2, "Changes should not be nil with custom config")
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(), "With custom config, adding oauth2MetadataUrl should be breaking")
+}
+
+// TestOAuth2MetadataUrlRemovedConfigurable tests that removing oauth2MetadataUrl can be configured.
+func TestOAuth2MetadataUrlRemovedConfigurable(t *testing.T) {
+	// ensure clean state
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	left := `type: oauth2
+description: OAuth2 auth
+oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`
+
+	right := `type: oauth2
+description: OAuth2 auth`
+
+	var lNode, rNode yaml.Node
+	_ = yaml.Unmarshal([]byte(left), &lNode)
+	_ = yaml.Unmarshal([]byte(right), &rNode)
+
+	ctx := context.Background()
+
+	var lSS, rSS v3.SecurityScheme
+	_ = low.BuildModel(lNode.Content[0], &lSS)
+	_ = low.BuildModel(rNode.Content[0], &rSS)
+
+	_ = lSS.Build(ctx, nil, lNode.Content[0], nil)
+	_ = rSS.Build(ctx, nil, rNode.Content[0], nil)
+
+	// Default behavior: removing oauth2MetadataUrl should not be breaking
+	changes := CompareSecuritySchemes(&lSS, &rSS)
+	assert.NotNil(t, changes, "Changes should not be nil when oauth2MetadataUrl is removed")
+	assert.Equal(t, 1, changes.TotalChanges(), "Should detect 1 change for oauth2MetadataUrl removal")
+	assert.Equal(t, 0, changes.TotalBreakingChanges(), "Removing oauth2MetadataUrl should not be breaking by default")
+
+	// Now configure as breaking
+	customConfig := &BreakingRulesConfig{
+		SecurityScheme: &SecuritySchemeRules{
+			OAuth2MetadataUrl: &BreakingChangeRule{
+				Added:    boolPtr(true),
+				Modified: boolPtr(true),
+				Removed:  boolPtr(true), // Override: removal is breaking
+			},
+		},
+	}
+	SetActiveBreakingRulesConfig(customConfig)
+
+	// Re-run comparison with custom config
+	changes2 := CompareSecuritySchemes(&lSS, &rSS)
+	assert.NotNil(t, changes2, "Changes should not be nil with custom config")
+	assert.Equal(t, 1, changes2.TotalBreakingChanges(), "With custom config, removing oauth2MetadataUrl should be breaking")
+}
+
 // TestOAuth2MetadataUrlConfigurableBreakingRules tests that the oauth2MetadataUrl field
 // in SecurityScheme has configurable breaking change behavior.
 func TestOAuth2MetadataUrlConfigurableBreakingRules(t *testing.T) {
