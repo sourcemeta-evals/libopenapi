@@ -4962,3 +4962,34 @@ components:
 	assert.NotNil(t, changes2)
 	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, modifying $dynamicRef should not be breaking")
 }
+
+// TestCompareSchemas_DynamicKeywordReplaced tests that swapping one dynamic
+// keyword for another carrying the same value reports both changes
+func TestCompareSchemas_DynamicKeywordReplaced(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicAnchor: node`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    TreeNode:
+      type: object
+      $dynamicRef: node`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("TreeNode").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 2, changes.TotalChanges())
+	properties := []string{changes.Changes[0].Property, changes.Changes[1].Property}
+	assert.ElementsMatch(t, []string{"$dynamicAnchor", "$dynamicRef"}, properties)
+}

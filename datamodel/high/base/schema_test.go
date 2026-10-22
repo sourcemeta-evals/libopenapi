@@ -322,9 +322,15 @@ $schema: https://example.com/custom-json-schema-dialect`
 	assert.Equal(t, 125, wentLow.AdditionalProperties.ValueNode.Line)
 	assert.NotNil(t, compiled.GoLowUntyped())
 
-	// now render it out!
+	// now render it out and verify the keywords survive the round trip
 	schemaBytes, _ := compiled.Render()
-	assert.Len(t, schemaBytes, 3541)
+	var rendered map[string]interface{}
+	_ = yaml.Unmarshal(schemaBytes, &rendered)
+	assert.Equal(t, "anchor", rendered["$anchor"])
+	assert.Equal(t, "dynamicAnchorValue", rendered["$dynamicAnchor"])
+	assert.Equal(t, "#dynamicRefTarget", rendered["$dynamicRef"])
+	assert.Equal(t, "https://example.com/custom-json-schema-dialect", rendered["$schema"])
+	assert.Len(t, rendered, 41)
 }
 
 func TestSchemaObjectWithAllOfSequenceOrder(t *testing.T) {
