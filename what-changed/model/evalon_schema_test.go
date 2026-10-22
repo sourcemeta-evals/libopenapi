@@ -1138,6 +1138,19 @@ components:
 			expectRecords: nil,
 		},
 		{
+			name: "entry replaced by another URI carrying the same value",
+			left: [][2]any{
+				{"https://example.com/vocab/old", true},
+			},
+			right: [][2]any{
+				{"https://example.com/vocab/new", true},
+			},
+			expectRecords: []expected{
+				{uri: "https://example.com/vocab/old", changeType: PropertyRemoved, original: "https://example.com/vocab/old=true"},
+				{uri: "https://example.com/vocab/new", changeType: PropertyAdded, new: "https://example.com/vocab/new=true"},
+			},
+		},
+		{
 			name: "mixed simultaneous add remove and modify alongside unchanged entry",
 			left: [][2]any{
 				{"https://example.com/vocab/unchanged", true},

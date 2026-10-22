@@ -510,14 +510,20 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteByte('|')
 	}
 	if !s.Comment.IsEmpty() {
+		sb.WriteString(CommentLabel)
+		sb.WriteByte(':')
 		sb.WriteString(s.Comment.Value)
 		sb.WriteByte('|')
 	}
 	if !s.ContentSchema.IsEmpty() {
+		sb.WriteString(ContentSchemaLabel)
+		sb.WriteByte(':')
 		sb.WriteString(low.GenerateHashString(s.ContentSchema.Value))
 		sb.WriteByte('|')
 	}
 	if s.Vocabulary.Value != nil {
+		sb.WriteString(VocabularyLabel)
+		sb.WriteByte(':')
 		// sort vocabulary keys for deterministic hashing
 		// pre-allocate with known size for better memory efficiency
 		vocabSize := orderedmap.Len(s.Vocabulary.Value)

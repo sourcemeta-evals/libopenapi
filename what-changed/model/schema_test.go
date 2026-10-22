@@ -5156,3 +5156,32 @@ components:
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
 	assert.Nil(t, changes)
 }
+
+// TestCompareSchemas_NewKeywordReplaced tests that moving the same text from
+// description to $comment reports both changes
+func TestCompareSchemas_NewKeywordReplaced(t *testing.T) {
+	low.ClearHashCache()
+
+	left := `openapi: "3.1.0"
+components:
+  schemas:
+    Pet:
+      description: note`
+
+	right := `openapi: "3.1.0"
+components:
+  schemas:
+    Pet:
+      $comment: note`
+
+	leftDoc, rightDoc := test_BuildDoc(left, right)
+
+	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+	assert.NotNil(t, changes)
+	assert.Equal(t, 2, changes.TotalChanges())
+	properties := []string{changes.Changes[0].Property, changes.Changes[1].Property}
+	assert.ElementsMatch(t, []string{"description", "$comment"}, properties)
+}

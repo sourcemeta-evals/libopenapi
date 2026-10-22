@@ -2754,3 +2754,102 @@ description: A schema without $id`
 	assert.True(t, sch.Id.IsEmpty())
 }
 
+// TestSchema_Hash_NewKeywordIdentity verifies that equal content carried by
+// different keywords produces different schema hashes
+func TestSchema_Hash_NewKeywordIdentity(t *testing.T) {
+	low.ClearHashCache()
+
+	build := func(yml string) [32]byte {
+		var node yaml.Node
+		_ = yaml.Unmarshal([]byte(yml), &node)
+		doc, _ := ExtractSchema(context.Background(), node.Content[0], nil)
+		return doc.Value.Schema().Hash()
+	}
+
+	descriptionHash := build(`schema:
+  description: note`)
+	titleHash := build(`schema:
+  title: note`)
+	commentHash := build(`schema:
+  $comment: note`)
+
+	assert.NotEqual(t, descriptionHash, commentHash)
+	assert.NotEqual(t, titleHash, commentHash)
+
+	notHash := build(`schema:
+  not:
+    type: string`)
+	contentSchemaHash := build(`schema:
+  contentSchema:
+    type: string`)
+
+	assert.NotEqual(t, notHash, contentSchemaHash)
+
+	spelledOutHash := build(`schema:
+  $comment: "https://example.com/vocab/core:true"`)
+	vocabularyHash := build(`schema:
+  $vocabulary:
+    "https://example.com/vocab/core": true`)
+
+	assert.NotEqual(t, spelledOutHash, vocabularyHash)
+}
+
+// TestSchema_Hash_NewKeywordsEqualAndChanged verifies hash stability for equal
+// values of the new keywords and sensitivity to value and presence changes
+func TestSchema_Hash_NewKeywordsEqualAndChanged(t *testing.T) {
+	low.ClearHashCache()
+
+	build := func(yml string) [32]byte {
+		var node yaml.Node
+		_ = yaml.Unmarshal([]byte(yml), &node)
+		doc, _ := ExtractSchema(context.Background(), node.Content[0], nil)
+		return doc.Value.Schema().Hash()
+	}
+
+	reference := build(`schema:
+  type: object
+  $comment: note
+  contentSchema:
+    type: string
+  $vocabulary:
+    "https://example.com/vocab/core": true`)
+	same := build(`schema:
+  type: object
+  $comment: note
+  contentSchema:
+    type: string
+  $vocabulary:
+    "https://example.com/vocab/core": true`)
+	changedComment := build(`schema:
+  type: object
+  $comment: other
+  contentSchema:
+    type: string
+  $vocabulary:
+    "https://example.com/vocab/core": true`)
+	changedContentSchema := build(`schema:
+  type: object
+  $comment: note
+  contentSchema:
+    type: integer
+  $vocabulary:
+    "https://example.com/vocab/core": true`)
+	changedVocabulary := build(`schema:
+  type: object
+  $comment: note
+  contentSchema:
+    type: string
+  $vocabulary:
+    "https://example.com/vocab/core": false`)
+	removedVocabulary := build(`schema:
+  type: object
+  $comment: note
+  contentSchema:
+    type: string`)
+
+	assert.Equal(t, reference, same)
+	assert.NotEqual(t, reference, changedComment)
+	assert.NotEqual(t, reference, changedContentSchema)
+	assert.NotEqual(t, reference, changedVocabulary)
+	assert.NotEqual(t, reference, removedVocabulary)
+}
