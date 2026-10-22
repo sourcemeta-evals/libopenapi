@@ -1482,3 +1482,64 @@ func TestEvalonGolden_AdditionalOperationsSharedKeyModificationDetected(t *testi
 	assert.True(t, sawSummaryModification,
 		"the CHANGED entry must record the real summary modification (left value against right value), not a comparison against the wrong counterpart")
 }
+
+// TestEvalonGolden_ItemEncodingNestedChangeReferencePreserved asserts that a
+// nested ItemEncoding modification keeps the reference metadata carried by the
+// left entry. The generic map helper that the itemEncoding comparison replaced
+// called SetReferenceIfExists after storing the nested changes, so a $ref-backed
+// entry surfaced its reference through GetChangeReference(). A hand-written map
+// loop that stores the CompareEncoding result without that call silently drops
+// the reference, and consumers rendering a diff lose the pointer back to the
+// component the entry came from.
+func TestEvalonGolden_ItemEncodingNestedChangeReferencePreserved(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	const encodingReference = "#/components/encodings/FileEncoding"
+
+	buildMT := func(key, contentType, reference string) *v3.MediaType {
+		valueNode := &yaml.Node{Kind: yaml.MappingNode}
+		contentTypeNode := &yaml.Node{Kind: yaml.ScalarNode, Value: contentType}
+		entry := low.ValueReference[*v3.Encoding]{
+			Value: &v3.Encoding{
+				ContentType: low.NodeReference[string]{
+					Value:     contentType,
+					KeyNode:   contentTypeNode,
+					ValueNode: contentTypeNode,
+				},
+				Reference: new(low.Reference),
+			},
+			ValueNode: valueNode,
+		}
+		if reference != "" {
+			entry.SetReference(reference, valueNode)
+		}
+		entries := orderedmap.New[low.KeyReference[string], low.ValueReference[*v3.Encoding]]()
+		entries.Set(low.KeyReference[string]{Value: key}, entry)
+		return &v3.MediaType{
+			ItemEncoding: low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[*v3.Encoding]]]{
+				Value: entries,
+			},
+		}
+	}
+
+	lMT := buildMT("file", "application/json", encodingReference)
+	rMT := buildMT("file", "application/xml", "")
+
+	changes := CompareMediaTypes(lMT, rMT)
+	require.NotNil(t, changes,
+		"a shared ItemEncoding key whose content types differ must report changes")
+
+	nested := changes.ItemEncodingChanges["file"]
+	require.NotNil(t, nested,
+		"the shared ItemEncoding key must carry a nested EncodingChanges entry")
+	assert.Equal(t, 1, nested.TotalChanges(),
+		"the nested entry must record the content type modification")
+	assert.Equal(t, encodingReference, nested.GetChangeReference(),
+		"a nested ItemEncoding modification must preserve the reference carried by the left entry")
+}

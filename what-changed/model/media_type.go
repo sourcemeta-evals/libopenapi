@@ -195,6 +195,7 @@ func CompareMediaTypes(l, r *v3.MediaType) *MediaTypeChanges {
 		ch := CompareEncoding(lVal.Value, rVal.Value)
 		if ch != nil {
 			mc.ItemEncodingChanges[k] = ch
+			SetReferenceIfExists(&lVal, ch)
 		}
 	}
 	for k, rVal := range rItemEncoding {
