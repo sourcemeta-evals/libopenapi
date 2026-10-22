@@ -1568,3 +1568,53 @@ func TestEvalonGolden_ItemEncodingNestedChangeReferencePreserved(t *testing.T) {
 	assert.Equal(t, encodingReference, nested.GetChangeReference(),
 		"a nested ItemEncoding modification must preserve the reference carried by the left entry")
 }
+
+// TestEvalonGolden_OpenAPI32RuleFieldsDecodeFromYAML asserts that the five new
+// OpenAPI 3.2 rule fields decode from a YAML configuration under their
+// documented property names. The rule registry is keyed off each field's json
+// tag, so a wrong json tag already surfaces as a failed lookup elsewhere, but
+// the yaml tag has no such consumer and a typo in it silently drops the rule
+// for anyone loading breaking-rule configuration from YAML.
+func TestEvalonGolden_OpenAPI32RuleFieldsDecodeFromYAML(t *testing.T) {
+	const config = `pathItem:
+  query:
+    removed: true
+  additionalOperations:
+    removed: true
+mediaType:
+  itemSchema:
+    added: true
+    removed: true
+  itemEncoding:
+    removed: true
+securityScheme:
+  oauth2MetadataUrl:
+    added: true
+    modified: true
+    removed: true`
+
+	var decoded BreakingRulesConfig
+	require.NoError(t, yaml.Unmarshal([]byte(config), &decoded), "the rule configuration must decode")
+
+	require.NotNil(t, decoded.PathItem, "pathItem rules must decode")
+	require.NotNil(t, decoded.PathItem.Query,
+		"the Query rule must decode from the `query` yaml key")
+	require.NotNil(t, decoded.PathItem.AdditionalOperations,
+		"the AdditionalOperations rule must decode from the `additionalOperations` yaml key")
+	require.NotNil(t, decoded.MediaType, "mediaType rules must decode")
+	require.NotNil(t, decoded.MediaType.ItemSchema,
+		"the ItemSchema rule must decode from the `itemSchema` yaml key")
+	require.NotNil(t, decoded.MediaType.ItemEncoding,
+		"the ItemEncoding rule must decode from the `itemEncoding` yaml key")
+	require.NotNil(t, decoded.SecurityScheme, "securityScheme rules must decode")
+	require.NotNil(t, decoded.SecurityScheme.OAuth2MetadataUrl,
+		"the OAuth2MetadataUrl rule must decode from the `oauth2MetadataUrl` yaml key")
+
+	require.NotNil(t, decoded.PathItem.Query.Removed)
+	assert.True(t, *decoded.PathItem.Query.Removed, "the decoded Query rule must carry removed=true")
+	require.NotNil(t, decoded.MediaType.ItemSchema.Added)
+	assert.True(t, *decoded.MediaType.ItemSchema.Added, "the decoded ItemSchema rule must carry added=true")
+	require.NotNil(t, decoded.SecurityScheme.OAuth2MetadataUrl.Modified)
+	assert.True(t, *decoded.SecurityScheme.OAuth2MetadataUrl.Modified,
+		"the decoded OAuth2MetadataUrl rule must carry modified=true")
+}
