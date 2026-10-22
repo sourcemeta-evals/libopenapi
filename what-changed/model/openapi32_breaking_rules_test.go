@@ -1697,3 +1697,46 @@ func hasAdditionalOperationRecord(changes *PathItemChanges, changeType int) bool
 	}
 	return false
 }
+
+// TestEvalonGolden_OpenAPI32PropertyConstantsResolveRules pins the exported
+// property-name constants to the OpenAPI property names they stand for, and
+// pins each one to the rule it must resolve. The rule registry is keyed by each
+// field's json tag, so a constant that is declared but never used by the
+// comparison code, with the comparisons passing the correct string literal
+// instead, is invisible to every behavioral assertion: the lookups all succeed
+// and nothing observes the constant at all. These assertions make the constant
+// itself load-bearing.
+func TestEvalonGolden_OpenAPI32PropertyConstantsResolveRules(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	config := GenerateDefaultBreakingRules()
+	require.NotNil(t, config.PathItem, "the default rules must carry pathItem rules")
+	require.NotNil(t, config.MediaType, "the default rules must carry mediaType rules")
+	require.NotNil(t, config.SecurityScheme, "the default rules must carry securityScheme rules")
+
+	for _, expected := range []struct {
+		constant  string
+		property  string
+		component string
+		rule      *BreakingChangeRule
+	}{
+		{PropQuery, "query", CompPathItem, config.PathItem.Query},
+		{PropAdditionalOperations, "additionalOperations", CompPathItem, config.PathItem.AdditionalOperations},
+		{PropItemSchema, "itemSchema", CompMediaType, config.MediaType.ItemSchema},
+		{PropItemEncoding, "itemEncoding", CompMediaType, config.MediaType.ItemEncoding},
+		{PropOAuth2MetadataUrl, "oauth2MetadataUrl", CompSecurityScheme, config.SecurityScheme.OAuth2MetadataUrl},
+	} {
+		assert.Equal(t, expected.property, expected.constant,
+			"the exported constant must carry the OpenAPI property name verbatim")
+		require.NotNil(t, expected.rule,
+			"the default rules must declare a typed rule for %q", expected.property)
+		assert.Same(t, expected.rule, config.GetRule(expected.component, expected.constant),
+			"looking up %q through its exported constant must resolve the typed rule for that property",
+			expected.property)
+	}
+}
