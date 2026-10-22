@@ -1470,6 +1470,70 @@ func TestEvalonGolden_DefaultBreakingRules_NewKeywordPolarities(t *testing.T) {
 		"$vocabulary modification affects validation and must be breaking")
 	assert.True(t, polarity(config.Schema.Vocabulary, "Removed"),
 		"$vocabulary removal affects validation and must be breaking")
+
+	// the registered polarities must also reach the records the comparator
+	// emits, which a hand-built change record cannot demonstrate
+	buildDoc := func(keyword string) string {
+		header := `openapi: "3.1.0"
+info:
+  title: t
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+`
+		return header + keyword
+	}
+
+	vocabularyTrue := `      $vocabulary:
+        "https://example.com/vocab/a": true
+`
+	vocabularyFalse := `      $vocabulary:
+        "https://example.com/vocab/a": false
+`
+
+	emitted := []struct {
+		name     string
+		left     string
+		right    string
+		breaking bool
+	}{
+		{name: "$comment added", right: "      $comment: note\n", breaking: false},
+		{name: "$comment removed", left: "      $comment: note\n", breaking: false},
+		{name: "$comment modified", left: "      $comment: note\n", right: "      $comment: other\n", breaking: false},
+		{name: "$vocabulary entry added", right: vocabularyTrue, breaking: true},
+		{name: "$vocabulary entry removed", left: vocabularyTrue, breaking: true},
+		{name: "$vocabulary value modified", left: vocabularyTrue, right: vocabularyFalse, breaking: true},
+		{name: "contentSchema added", right: "      contentSchema:\n        type: string\n", breaking: true},
+		{name: "contentSchema removed", left: "      contentSchema:\n        type: string\n", breaking: true},
+	}
+
+	for _, testCase := range emitted {
+		t.Run(testCase.name, func(t *testing.T) {
+			low.ClearHashCache()
+			defer low.ClearHashCache()
+			leftDoc, rightDoc := test_BuildDoc(buildDoc(testCase.left), buildDoc(testCase.right))
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			require.NotNil(t, changes, "the comparison must report the transition")
+			assert.Equal(t, 1, changes.TotalChanges(),
+				"the transition must emit exactly one change record")
+
+			expectedBreaking := 0
+			if testCase.breaking {
+				expectedBreaking = 1
+			}
+			assert.Equal(t, expectedBreaking, changes.TotalBreakingChanges(),
+				"the emitted record must carry the registered breaking polarity")
+			for _, change := range changes.GetAllChanges() {
+				assert.Equal(t, testCase.breaking, change.Breaking,
+					"the emitted record must carry the registered breaking polarity")
+			}
+		})
+	}
 }
 
 // TestEvalonGolden_CheckVocabularyChanges_PreservesSourceContext asserts that
