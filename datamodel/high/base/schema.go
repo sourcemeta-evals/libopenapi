@@ -315,8 +315,12 @@ func NewSchema(schema *base.Schema) *Schema {
 	if !schema.Anchor.IsEmpty() {
 		s.Anchor = schema.Anchor.Value
 	}
-	s.DynamicAnchor = schema.DynamicAnchor.Value
-	s.DynamicRef = schema.DynamicRef.Value
+	if !schema.DynamicAnchor.IsEmpty() {
+		s.DynamicAnchor = schema.DynamicAnchor.Value
+	}
+	if !schema.DynamicRef.IsEmpty() {
+		s.DynamicRef = schema.DynamicRef.Value
+	}
 
 	var enum []*yaml.Node
 	for i := range schema.Enum.Value {

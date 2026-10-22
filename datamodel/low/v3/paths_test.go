@@ -496,6 +496,7 @@ func TestPaths_Build_BrokenOp(t *testing.T) {
 }
 
 func TestPaths_Hash(t *testing.T) {
+	low.ClearHashCache()
 	yml := `/french/toast:
   description: toast
 /french/hen:
