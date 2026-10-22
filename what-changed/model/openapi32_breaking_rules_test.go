@@ -1104,12 +1104,18 @@ func TestEvalonGolden_ItemEncodingNilValueNodeSafety(t *testing.T) {
 }
 
 // TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides asserts that
-// CompareSecuritySchemes honors DISTINCT active-config polarities for each of
-// the three OAuth2MetadataUrl transitions. A previous implementation reused a
-// single boolean for all three transitions, so overriding Added or Removed
-// without touching Modified silently had no effect. This test flips each of
-// the three transitions to a distinct non-default polarity and verifies each
-// emitted Change record reflects the correct per-transition override.
+// CompareSecuritySchemes honors the active-config polarity of each
+// OAuth2MetadataUrl transition independently. A previous implementation reused
+// a single boolean for all three transitions, so overriding Added or Removed
+// without touching Modified silently had no effect.
+//
+// The table walks every combination of the three booleans rather than one
+// hand-picked configuration. A boolean carries only two values, so no single
+// configuration can tell all three lookups apart: one pair always shares a
+// value, and a transition wired to the wrong accessor of that pair goes
+// unnoticed. Across all eight combinations every pair of transitions differs
+// in four of them, so any transition reading another transition's rule, or
+// left on a hardcoded literal, fails here.
 func TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
@@ -1119,19 +1125,16 @@ func TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides(t *testing.T) {
 		ResetDefaultBreakingRules()
 	}()
 
-	// Set distinct polarities per transition: Added=true, Modified=false,
-	// Removed=true. Defaults are all false, so any test that only surfaces
-	// the Modified transition (the reference's prior bug) cannot distinguish
-	// these overrides.
-	SetActiveBreakingRulesConfig(&BreakingRulesConfig{
-		SecurityScheme: &SecuritySchemeRules{
-			OAuth2MetadataUrl: &BreakingChangeRule{
-				Added:    boolPtr(true),
-				Modified: boolPtr(false),
-				Removed:  boolPtr(true),
-			},
-		},
-	})
+	const (
+		schemeWithoutURL = `type: oauth2
+description: OAuth2 auth`
+		metadataURL = "https://example.com/.well-known/oauth-authorization-server"
+		changedURL  = "https://example.com/v2/.well-known/oauth-authorization-server"
+	)
+
+	schemeWithURL := func(url string) string {
+		return schemeWithoutURL + "\noauth2MetadataUrl: " + url
+	}
 
 	compare := func(t *testing.T, left, right string) *SecuritySchemeChanges {
 		var lNode, rNode yaml.Node
@@ -1150,72 +1153,94 @@ func TestEvalonGolden_OAuth2MetadataUrlPerTransitionOverrides(t *testing.T) {
 		return CompareSecuritySchemes(&lSS, &rSS)
 	}
 
-	// Addition: left has no oauth2MetadataUrl, right introduces one.
-	// Under overridden Added=true, the emitted addition must be breaking.
-	addedChanges := compare(t,
-		`type: oauth2
-description: OAuth2 auth`,
-		`type: oauth2
-description: OAuth2 auth
-oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`)
-	assert.NotNil(t, addedChanges)
-	sawAdded := false
-	for _, ch := range addedChanges.GetAllChanges() {
-		if ch.Property != v3.OAuth2MetadataUrlLabel {
-			continue
+	findRecord := func(t *testing.T, changes *SecuritySchemeChanges, changeType int) *Change {
+		require.NotNil(t, changes, "the comparison must report changes")
+		var found *Change
+		for _, ch := range changes.GetAllChanges() {
+			if ch.Property != v3.OAuth2MetadataUrlLabel || ch.ChangeType != changeType {
+				continue
+			}
+			require.Nil(t, found, "oauth2MetadataUrl must emit exactly one record per transition")
+			found = ch
 		}
-		if ch.ChangeType == PropertyAdded {
-			assert.True(t, ch.Breaking,
-				"overridden OAuth2MetadataUrl.Added=true must classify the added record as breaking")
-			sawAdded = true
-		}
+		require.NotNil(t, found, "expected one oauth2MetadataUrl record for this transition")
+		return found
 	}
-	assert.True(t, sawAdded, "expected one OAuth2MetadataUrl PropertyAdded record")
 
-	// Removal: left has oauth2MetadataUrl, right removes it.
-	// Under overridden Removed=true, the emitted removal must be breaking.
-	removedChanges := compare(t,
-		`type: oauth2
-description: OAuth2 auth
-oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`,
-		`type: oauth2
-description: OAuth2 auth`)
-	assert.NotNil(t, removedChanges)
-	sawRemoved := false
-	for _, ch := range removedChanges.GetAllChanges() {
-		if ch.Property != v3.OAuth2MetadataUrlLabel {
-			continue
-		}
-		if ch.ChangeType == PropertyRemoved {
-			assert.True(t, ch.Breaking,
-				"overridden OAuth2MetadataUrl.Removed=true must classify the removed record as breaking")
-			sawRemoved = true
-		}
+	transitions := []struct {
+		name       string
+		left       string
+		right      string
+		changeType int
+		original   string
+		updated    string
+		polarity   func(added, modified, removed bool) bool
+	}{
+		{
+			name:       "addition",
+			left:       schemeWithoutURL,
+			right:      schemeWithURL(metadataURL),
+			changeType: PropertyAdded,
+			original:   "",
+			updated:    metadataURL,
+			polarity:   func(added, _, _ bool) bool { return added },
+		},
+		{
+			name:       "modification",
+			left:       schemeWithURL(metadataURL),
+			right:      schemeWithURL(changedURL),
+			changeType: Modified,
+			original:   metadataURL,
+			updated:    changedURL,
+			polarity:   func(_, modified, _ bool) bool { return modified },
+		},
+		{
+			name:       "removal",
+			left:       schemeWithURL(metadataURL),
+			right:      schemeWithoutURL,
+			changeType: PropertyRemoved,
+			original:   metadataURL,
+			updated:    "",
+			polarity:   func(_, _, removed bool) bool { return removed },
+		},
 	}
-	assert.True(t, sawRemoved, "expected one OAuth2MetadataUrl PropertyRemoved record")
 
-	// Modification: both sides have oauth2MetadataUrl with different URLs.
-	// Under overridden Modified=false, the emitted modification must be non-breaking.
-	modifiedChanges := compare(t,
-		`type: oauth2
-description: OAuth2 auth
-oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server`,
-		`type: oauth2
-description: OAuth2 auth
-oauth2MetadataUrl: https://example.com/v2/.well-known/oauth-authorization-server`)
-	assert.NotNil(t, modifiedChanges)
-	sawModified := false
-	for _, ch := range modifiedChanges.GetAllChanges() {
-		if ch.Property != v3.OAuth2MetadataUrlLabel {
-			continue
-		}
-		if ch.ChangeType == Modified {
-			assert.False(t, ch.Breaking,
-				"overridden OAuth2MetadataUrl.Modified=false must classify the modified record as non-breaking")
-			sawModified = true
+	combinations := []struct{ added, modified, removed bool }{
+		{false, false, false},
+		{false, false, true},
+		{false, true, false},
+		{false, true, true},
+		{true, false, false},
+		{true, false, true},
+		{true, true, false},
+		{true, true, true},
+	}
+
+	for _, combination := range combinations {
+		for _, transition := range transitions {
+			SetActiveBreakingRulesConfig(&BreakingRulesConfig{
+				SecurityScheme: &SecuritySchemeRules{
+					OAuth2MetadataUrl: &BreakingChangeRule{
+						Added:    boolPtr(combination.added),
+						Modified: boolPtr(combination.modified),
+						Removed:  boolPtr(combination.removed),
+					},
+				},
+			})
+			low.ClearHashCache()
+
+			record := findRecord(t, compare(t, transition.left, transition.right), transition.changeType)
+
+			assert.Equal(t, transition.polarity(combination.added, combination.modified, combination.removed),
+				record.Breaking,
+				"the oauth2MetadataUrl %s record must reflect its own configured polarity under Added=%v Modified=%v Removed=%v, not another transition's",
+				transition.name, combination.added, combination.modified, combination.removed)
+			assert.Equal(t, transition.original, record.Original,
+				"the oauth2MetadataUrl %s record must carry the left-side URL in Change.Original", transition.name)
+			assert.Equal(t, transition.updated, record.New,
+				"the oauth2MetadataUrl %s record must carry the right-side URL in Change.New", transition.name)
 		}
 	}
-	assert.True(t, sawModified, "expected one OAuth2MetadataUrl Modified record")
 }
 
 // TestEvalonGolden_ItemEncodingChangeKeyPreservation asserts that when
