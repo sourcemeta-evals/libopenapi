@@ -16,6 +16,7 @@ import (
 	v3 "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // These tests require full documents to be tested properly. schemas are perhaps the most complex
@@ -4675,8 +4676,8 @@ components:
 	assert.NotNil(t, typeChange.Context.NewLine)
 }
 
-// TestCompareSchemas_DynamicAnchor_Added tests adding $dynamicAnchor (JSON Schema 2020-12)
-func TestCompareSchemas_DynamicAnchor_Added(t *testing.T) {
+// TestCompareSchemas_DynamicAnchor_Added_Pinned tests adding $dynamicAnchor (JSON Schema 2020-12)
+func TestCompareSchemas_DynamicAnchor_Added_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4705,8 +4706,8 @@ components:
 	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicAnchor_Modified tests modifying $dynamicAnchor
-func TestCompareSchemas_DynamicAnchor_Modified(t *testing.T) {
+// TestCompareSchemas_DynamicAnchor_Modified_Pinned tests modifying $dynamicAnchor
+func TestCompareSchemas_DynamicAnchor_Modified_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4736,8 +4737,8 @@ components:
 	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicAnchor_Removed tests removing $dynamicAnchor
-func TestCompareSchemas_DynamicAnchor_Removed(t *testing.T) {
+// TestCompareSchemas_DynamicAnchor_Removed_Pinned tests removing $dynamicAnchor
+func TestCompareSchemas_DynamicAnchor_Removed_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4766,8 +4767,8 @@ components:
 	assert.Equal(t, "$dynamicAnchor", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicRef_Added tests adding $dynamicRef (JSON Schema 2020-12)
-func TestCompareSchemas_DynamicRef_Added(t *testing.T) {
+// TestCompareSchemas_DynamicRef_Added_Pinned tests adding $dynamicRef (JSON Schema 2020-12)
+func TestCompareSchemas_DynamicRef_Added_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4796,8 +4797,8 @@ components:
 	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicRef_Modified tests modifying $dynamicRef
-func TestCompareSchemas_DynamicRef_Modified(t *testing.T) {
+// TestCompareSchemas_DynamicRef_Modified_Pinned tests modifying $dynamicRef
+func TestCompareSchemas_DynamicRef_Modified_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4827,8 +4828,8 @@ components:
 	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicRef_Removed tests removing $dynamicRef
-func TestCompareSchemas_DynamicRef_Removed(t *testing.T) {
+// TestCompareSchemas_DynamicRef_Removed_Pinned tests removing $dynamicRef
+func TestCompareSchemas_DynamicRef_Removed_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4857,9 +4858,9 @@ components:
 	assert.Equal(t, "$dynamicRef", changes.Changes[0].Property)
 }
 
-// TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules tests that $dynamicAnchor
+// TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules_Pinned tests that $dynamicAnchor
 // breaking behavior can be configured
-func TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules(t *testing.T) {
+func TestCompareSchemas_DynamicAnchor_ConfigurableBreakingRules_Pinned(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
 	low.ClearHashCache()
@@ -4910,9 +4911,9 @@ components:
 	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, modifying $dynamicAnchor should not be breaking")
 }
 
-// TestCompareSchemas_DynamicRef_ConfigurableBreakingRules tests that $dynamicRef
+// TestCompareSchemas_DynamicRef_ConfigurableBreakingRules_Pinned tests that $dynamicRef
 // breaking behavior can be configured
-func TestCompareSchemas_DynamicRef_ConfigurableBreakingRules(t *testing.T) {
+func TestCompareSchemas_DynamicRef_ConfigurableBreakingRules_Pinned(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
 	low.ClearHashCache()
@@ -4963,9 +4964,9 @@ components:
 	assert.Equal(t, 0, changes2.TotalBreakingChanges(), "With custom config, modifying $dynamicRef should not be breaking")
 }
 
-// TestCompareSchemas_DynamicKeywordReplaced tests that swapping one dynamic
+// TestCompareSchemas_DynamicKeywordReplaced_Pinned tests that swapping one dynamic
 // keyword for another carrying the same value reports both changes
-func TestCompareSchemas_DynamicKeywordReplaced(t *testing.T) {
+func TestCompareSchemas_DynamicKeywordReplaced_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
@@ -4988,7 +4989,8 @@ components:
 	rSchemaProxy := rightDoc.Components.Value.FindSchema("TreeNode").Value
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
-	assert.NotNil(t, changes)
+	require.NotNil(t, changes)
+	require.Len(t, changes.Changes, 2)
 	assert.Equal(t, 2, changes.TotalChanges())
 	properties := []string{changes.Changes[0].Property, changes.Changes[1].Property}
 	assert.ElementsMatch(t, []string{"$dynamicAnchor", "$dynamicRef"}, properties)

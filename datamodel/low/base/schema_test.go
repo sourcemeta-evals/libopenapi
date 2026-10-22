@@ -2676,9 +2676,9 @@ func TestSchemaDynamicValue_Hash_IsB(t *testing.T) {
 	assert.True(t, value.IsB())
 }
 
-// TestSchema_Hash_DynamicKeywordIdentity verifies that equal values carried by
+// TestSchema_Hash_DynamicKeywordIdentity_Pinned verifies that equal values carried by
 // different anchor keywords produce different schema hashes
-func TestSchema_Hash_DynamicKeywordIdentity(t *testing.T) {
+func TestSchema_Hash_DynamicKeywordIdentity_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	build := func(yml string) [32]byte {
@@ -2703,9 +2703,9 @@ func TestSchema_Hash_DynamicKeywordIdentity(t *testing.T) {
 	assert.NotEqual(t, dynamicAnchorHash, dynamicRefHash)
 }
 
-// TestSchema_Hash_DynamicKeywordsEqualAndChanged verifies hash stability for
+// TestSchema_Hash_DynamicKeywordsEqualAndChanged_Pinned verifies hash stability for
 // equal dynamic keywords and sensitivity to value and presence changes
-func TestSchema_Hash_DynamicKeywordsEqualAndChanged(t *testing.T) {
+func TestSchema_Hash_DynamicKeywordsEqualAndChanged_Pinned(t *testing.T) {
 	low.ClearHashCache()
 
 	build := func(yml string) [32]byte {
