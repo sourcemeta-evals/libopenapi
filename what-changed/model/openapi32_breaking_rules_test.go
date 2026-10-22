@@ -434,7 +434,7 @@ func TestDefaultBreakingRules_Query(t *testing.T) {
 	config := GenerateDefaultBreakingRules()
 
 	// Query should have same defaults as other HTTP methods
-	assert.NotNil(t, config.PathItem.Query)
+	require.NotNil(t, config.PathItem.Query)
 	assert.False(t, *config.PathItem.Query.Added, "Adding query should not be breaking by default")
 	assert.False(t, *config.PathItem.Query.Modified, "Modifying query should not be breaking by default")
 	assert.True(t, *config.PathItem.Query.Removed, "Removing query should be breaking by default")
@@ -445,7 +445,7 @@ func TestDefaultBreakingRules_AdditionalOperations(t *testing.T) {
 	ResetDefaultBreakingRules()
 	config := GenerateDefaultBreakingRules()
 
-	assert.NotNil(t, config.PathItem.AdditionalOperations)
+	require.NotNil(t, config.PathItem.AdditionalOperations)
 	assert.False(t, *config.PathItem.AdditionalOperations.Added, "Adding additionalOperations should not be breaking by default")
 	assert.False(t, *config.PathItem.AdditionalOperations.Modified, "Modifying additionalOperations should not be breaking by default")
 	assert.True(t, *config.PathItem.AdditionalOperations.Removed, "Removing additionalOperations should be breaking by default")
@@ -456,7 +456,7 @@ func TestDefaultBreakingRules_ItemSchema(t *testing.T) {
 	ResetDefaultBreakingRules()
 	config := GenerateDefaultBreakingRules()
 
-	assert.NotNil(t, config.MediaType.ItemSchema)
+	require.NotNil(t, config.MediaType.ItemSchema)
 	assert.True(t, *config.MediaType.ItemSchema.Added, "Adding itemSchema should be breaking by default")
 	assert.False(t, *config.MediaType.ItemSchema.Modified, "Modifying itemSchema should not be breaking by default")
 	assert.True(t, *config.MediaType.ItemSchema.Removed, "Removing itemSchema should be breaking by default")
@@ -467,7 +467,7 @@ func TestDefaultBreakingRules_ItemEncoding(t *testing.T) {
 	ResetDefaultBreakingRules()
 	config := GenerateDefaultBreakingRules()
 
-	assert.NotNil(t, config.MediaType.ItemEncoding)
+	require.NotNil(t, config.MediaType.ItemEncoding)
 	assert.False(t, *config.MediaType.ItemEncoding.Added, "Adding itemEncoding should not be breaking by default")
 	assert.False(t, *config.MediaType.ItemEncoding.Modified, "Modifying itemEncoding should not be breaking by default")
 	assert.True(t, *config.MediaType.ItemEncoding.Removed, "Removing itemEncoding should be breaking by default")
@@ -478,7 +478,7 @@ func TestDefaultBreakingRules_OAuth2MetadataUrl(t *testing.T) {
 	ResetDefaultBreakingRules()
 	config := GenerateDefaultBreakingRules()
 
-	assert.NotNil(t, config.SecurityScheme.OAuth2MetadataUrl)
+	require.NotNil(t, config.SecurityScheme.OAuth2MetadataUrl)
 	assert.False(t, *config.SecurityScheme.OAuth2MetadataUrl.Added, "Adding oauth2MetadataUrl should not be breaking by default")
 	assert.False(t, *config.SecurityScheme.OAuth2MetadataUrl.Modified, "Modifying oauth2MetadataUrl should not be breaking by default")
 	assert.False(t, *config.SecurityScheme.OAuth2MetadataUrl.Removed, "Removing oauth2MetadataUrl should not be breaking by default")
@@ -1617,4 +1617,83 @@ securityScheme:
 	require.NotNil(t, decoded.SecurityScheme.OAuth2MetadataUrl.Modified)
 	assert.True(t, *decoded.SecurityScheme.OAuth2MetadataUrl.Modified,
 		"the decoded OAuth2MetadataUrl rule must carry modified=true")
+}
+
+// TestEvalonGolden_AdditionalOperationsSharedKeyBeyondShorterMap exercises the
+// shared-key matching loop when the two additionalOperations maps differ in
+// size and the shared key sits past the shorter map's last index. The base
+// implementation indexed the LEFT key slice with the RIGHT loop's index, so this
+// input did not merely compare the wrong counterpart, it read out of range and
+// panicked. Every other fixture here uses equal-sized maps, which cannot catch a
+// reintroduced out-of-range access. Both directions are exercised because the
+// matching loop walks the left map and the overrun depends on which side is
+// longer.
+func TestEvalonGolden_AdditionalOperationsSharedKeyBeyondShorterMap(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+	}()
+
+	shorter := `additionalOperations:
+  COPY:
+    summary: Copy operation
+    operationId: copyOp`
+
+	longer := `additionalOperations:
+  PURGE:
+    summary: Purge operation
+    operationId: purgeOp
+  COPY:
+    summary: Copy operation renamed
+    operationId: copyOp`
+
+	build := func(t *testing.T, src string) *v3.PathItem {
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &node), "fixture must parse")
+		idx := index.NewSpecIndexWithConfig(&node, index.CreateOpenAPIIndexConfig())
+		var item v3.PathItem
+		require.NoError(t, low.BuildModel(&node, &item), "PathItem BuildModel must succeed")
+		require.NoError(t, item.Build(context.Background(), nil, node.Content[0], idx),
+			"PathItem Build must succeed")
+		return &item
+	}
+
+	// Right side longer: the shared COPY key is at right index 1, past the left
+	// map's only index, which is where the out-of-range read occurred.
+	var rightLongerChanges *PathItemChanges
+	require.NotPanics(t, func() {
+		low.ClearHashCache()
+		rightLongerChanges = ComparePathItems(build(t, shorter), build(t, longer))
+	}, "comparing a shared key past the shorter map's last index must not read out of range")
+	require.NotNil(t, rightLongerChanges, "the differing shared operation must report changes")
+	require.NotNil(t, rightLongerChanges.AdditionalOperationChanges["COPY"],
+		"the shared COPY key must be compared against its real counterpart and report a modification")
+	require.True(t, hasAdditionalOperationRecord(rightLongerChanges, PropertyAdded),
+		"the right-only PURGE key must be reported as an addition")
+
+	// Left side longer: same shape with the sides swapped.
+	var leftLongerChanges *PathItemChanges
+	require.NotPanics(t, func() {
+		low.ClearHashCache()
+		leftLongerChanges = ComparePathItems(build(t, longer), build(t, shorter))
+	}, "comparing a shared key past the shorter map's last index must not read out of range")
+	require.NotNil(t, leftLongerChanges, "the differing shared operation must report changes")
+	require.NotNil(t, leftLongerChanges.AdditionalOperationChanges["COPY"],
+		"the shared COPY key must be compared against its real counterpart and report a modification")
+	require.True(t, hasAdditionalOperationRecord(leftLongerChanges, PropertyRemoved),
+		"the left-only PURGE key must be reported as a removal")
+}
+
+// hasAdditionalOperationRecord reports whether the comparison emitted a
+// top-level additionalOperations record of the given transition type.
+func hasAdditionalOperationRecord(changes *PathItemChanges, changeType int) bool {
+	for _, ch := range changes.GetAllChanges() {
+		if ch.Property == v3.AdditionalOperationsLabel && ch.ChangeType == changeType {
+			return true
+		}
+	}
+	return false
 }
