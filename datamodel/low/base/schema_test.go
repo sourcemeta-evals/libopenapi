@@ -1525,6 +1525,7 @@ func TestSchema_Hash_AdditionalPropsSlice(t *testing.T) {
 }
 
 func TestSchema_Hash_AdditionalPropsSliceNoMap(t *testing.T) {
+	low.ClearHashCache()
 	left := `schema:
   additionalProperties:
     - hello`
