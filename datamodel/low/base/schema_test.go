@@ -2671,3 +2671,18 @@ func TestSchemaDynamicValue_Hash_IsB(t *testing.T) {
 	assert.False(t, value.IsA())
 	assert.True(t, value.IsB())
 }
+
+func TestSchema_DynamicKeywords_Parse(t *testing.T) {
+	yml := `schema:
+  type: object
+  $dynamicAnchor: node
+  $dynamicRef: "#node"`
+
+	var node yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &node)
+	doc, _ := ExtractSchema(context.Background(), node.Content[0], nil)
+	assert.NotNil(t, doc)
+	sch := doc.Value.Schema()
+	assert.Equal(t, "node", sch.DynamicAnchor.Value)
+	assert.Equal(t, "#node", sch.DynamicRef.Value)
+}

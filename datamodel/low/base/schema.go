@@ -494,10 +494,14 @@ func (s *Schema) hash(quick bool) [32]byte {
 		sb.WriteByte('|')
 	}
 	if !s.DynamicAnchor.IsEmpty() {
+		sb.WriteString("$dynamicAnchor")
+		sb.WriteByte(':')
 		sb.WriteString(s.DynamicAnchor.Value)
 		sb.WriteByte('|')
 	}
 	if !s.DynamicRef.IsEmpty() {
+		sb.WriteString("$dynamicRef")
+		sb.WriteByte(':')
 		sb.WriteString(s.DynamicRef.Value)
 		sb.WriteByte('|')
 	}

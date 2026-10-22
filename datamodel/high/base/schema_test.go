@@ -1811,3 +1811,28 @@ oneOf:
 	assert.Contains(t, output, "meow:")
 	assert.Contains(t, output, "type:")
 }
+
+func TestSchema_DynamicKeywords_HighLevel(t *testing.T) {
+	testSpec := `type: object
+$dynamicAnchor: node
+$dynamicRef: "#node"
+`
+
+	var compNode yaml.Node
+	_ = yaml.Unmarshal([]byte(testSpec), &compNode)
+
+	sp := new(lowbase.SchemaProxy)
+	err := sp.Build(context.Background(), nil, compNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	lowproxy := low.NodeReference[*lowbase.SchemaProxy]{
+		Value:     sp,
+		ValueNode: compNode.Content[0],
+	}
+
+	schemaProxy := NewSchemaProxy(&lowproxy)
+	compiled := schemaProxy.Schema()
+	assert.NotNil(t, compiled)
+	assert.Equal(t, "node", compiled.DynamicAnchor)
+	assert.Equal(t, "#node", compiled.DynamicRef)
+}
