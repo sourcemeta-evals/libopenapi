@@ -227,6 +227,112 @@ components:
 	}
 }
 
+// TestEvalonGolden_CompareSchemas_Comment_EmptyValueTransitions pins the
+// documented outcomes when one side carries an empty $comment: an empty value
+// opposite a non-empty one is an addition or a removal rather than a
+// modification, and two empty values produce no record. Each pair differs in an
+// unrelated description so the comparison reaches the keyword instead of
+// returning at the outer hash-equality shortcut, and every case asserts the
+// total so a duplicate or missing record fails.
+func TestEvalonGolden_CompareSchemas_Comment_EmptyValueTransitions(t *testing.T) {
+	ResetDefaultBreakingRules()
+	ResetActiveBreakingRulesConfig()
+	low.ClearHashCache()
+	defer func() {
+		ResetActiveBreakingRulesConfig()
+		ResetDefaultBreakingRules()
+		low.ClearHashCache()
+	}()
+
+	buildDoc := func(side, comment string) string {
+		return `openapi: "3.1.0"
+info:
+  title: ` + side + `
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: object
+      description: ` + side + ` hand side
+      $comment: ` + comment
+	}
+
+	cases := []struct {
+		name          string
+		left          string
+		right         string
+		commentChange int
+		original      string
+		new           string
+	}{
+		{
+			name:          "empty to non-empty is an addition",
+			left:          `""`,
+			right:         `"a note"`,
+			commentChange: PropertyAdded,
+			new:           "a note",
+		},
+		{
+			name:          "non-empty to empty is a removal",
+			left:          `"a note"`,
+			right:         `""`,
+			commentChange: PropertyRemoved,
+			original:      "a note",
+		},
+		{
+			name:          "two empty values emit no record",
+			left:          `""`,
+			right:         `""`,
+			commentChange: -1,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			low.ClearHashCache()
+			defer low.ClearHashCache()
+
+			leftDoc, rightDoc := test_BuildDoc(
+				buildDoc("left", testCase.left), buildDoc("right", testCase.right))
+
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			require.NotNil(t, changes, "the unrelated description change must be reported")
+			assert.Equal(t, 0, changes.TotalBreakingChanges(),
+				"no $comment transition is breaking")
+
+			var commentChanges []*Change
+			for _, change := range changes.GetAllChanges() {
+				if change.Property == PropComment {
+					commentChanges = append(commentChanges, change)
+				}
+			}
+
+			if testCase.commentChange == -1 {
+				assert.Empty(t, commentChanges,
+					"two empty $comment values must emit no change record")
+				assert.Equal(t, 1, changes.TotalChanges(),
+					"only the unrelated description change may be reported")
+				return
+			}
+
+			assert.Equal(t, 2, changes.TotalChanges(),
+				"exactly the description change and one $comment change may be reported")
+			require.Len(t, commentChanges, 1,
+				"an empty value opposite a non-empty one must emit exactly one $comment record")
+			assert.Equal(t, testCase.commentChange, commentChanges[0].ChangeType,
+				"an empty value opposite a non-empty one is an addition or a removal, not a modification")
+			assert.Equal(t, testCase.original, commentChanges[0].Original,
+				"the left side payload must carry the original value")
+			assert.Equal(t, testCase.new, commentChanges[0].New,
+				"the right side payload must carry the new value")
+			assert.False(t, commentChanges[0].Breaking, "$comment changes are not breaking")
+		})
+	}
+}
+
 // TestCompareSchemas_ContentSchema_Added tests contentSchema addition detection
 func TestEvalonGolden_CompareSchemas_ContentSchema_Added(t *testing.T) {
 	ResetDefaultBreakingRules()
