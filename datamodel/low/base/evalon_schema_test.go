@@ -113,16 +113,16 @@ type: object`
 	assert.NotNil(t, sch.Vocabulary.Value)
 	assert.Equal(t, 3, sch.Vocabulary.Value.Len())
 
-	for k, v := range sch.Vocabulary.Value.FromOldest() {
-		switch k.Value {
-		case "https://json-schema.org/draft/2020-12/vocab/core":
-			assert.True(t, v.Value)
-		case "https://json-schema.org/draft/2020-12/vocab/applicator":
-			assert.True(t, v.Value)
-		case "https://json-schema.org/draft/2020-12/vocab/validation":
-			assert.False(t, v.Value)
-		}
+	parsed := make(map[string]bool, sch.Vocabulary.Value.Len())
+	for key, value := range sch.Vocabulary.Value.FromOldest() {
+		parsed[key.Value] = value.Value
 	}
+
+	assert.Equal(t, map[string]bool{
+		"https://json-schema.org/draft/2020-12/vocab/core":       true,
+		"https://json-schema.org/draft/2020-12/vocab/applicator": true,
+		"https://json-schema.org/draft/2020-12/vocab/validation": false,
+	}, parsed)
 }
 
 func TestEvalonGolden_Schema_Vocabulary_Empty(t *testing.T) {
@@ -274,14 +274,15 @@ $vocabulary:
 	assert.NotNil(t, sch.Vocabulary.Value)
 	assert.Equal(t, 2, sch.Vocabulary.Value.Len())
 
-	for k, v := range sch.Vocabulary.Value.FromOldest() {
-		switch k.Value {
-		case "https://example.com/vocab/invalid":
-			assert.False(t, v.Value, "Invalid boolean should default to false")
-		case "https://example.com/vocab/valid":
-			assert.True(t, v.Value, "true should parse as true")
-		}
+	parsed := make(map[string]bool, sch.Vocabulary.Value.Len())
+	for key, value := range sch.Vocabulary.Value.FromOldest() {
+		parsed[key.Value] = value.Value
 	}
+
+	assert.Equal(t, map[string]bool{
+		"https://example.com/vocab/invalid": false,
+		"https://example.com/vocab/valid":   true,
+	}, parsed, "an unparsable boolean defaults to false beside a valid true, and both URIs must come back unchanged")
 }
 
 func TestEvalonGolden_Schema_Hash_IncludesNewFields(t *testing.T) {
@@ -428,16 +429,15 @@ $vocabulary:
 	assert.NotNil(t, sch.Vocabulary.Value, "Vocabulary must be populated")
 	assert.Equal(t, 2, sch.Vocabulary.Value.Len())
 
-	for k, v := range sch.Vocabulary.Value.FromOldest() {
-		switch k.Value {
-		case "https://example.com/vocab/canonical":
-			assert.True(t, v.Value,
-				"a plain canonical unquoted true entry must remain true")
-		case "https://example.com/vocab/str-tagged":
-			assert.False(t, v.Value,
-				"an explicit !!str-tagged 'true' scalar must silently default to false; implementations that miss the tag check and accept the string as boolean fail here")
-		}
+	parsed := make(map[string]bool, sch.Vocabulary.Value.Len())
+	for key, value := range sch.Vocabulary.Value.FromOldest() {
+		parsed[key.Value] = value.Value
 	}
+
+	assert.Equal(t, map[string]bool{
+		"https://example.com/vocab/canonical":  true,
+		"https://example.com/vocab/str-tagged": false,
+	}, parsed, "a plain canonical unquoted true stays true while an explicit !!str-tagged 'true' silently defaults to false, and both URIs must come back unchanged")
 }
 
 // TestEvalonGolden_Schema_Vocabulary_QuotedBoolFormsDefaultToFalse asserts
@@ -482,38 +482,21 @@ $vocabulary:
 	assert.NotNil(t, sch.Vocabulary.Value, "Vocabulary must be populated")
 	assert.Equal(t, 10, sch.Vocabulary.Value.Len())
 
-	for k, v := range sch.Vocabulary.Value.FromOldest() {
-		switch k.Value {
-		case "https://example.com/vocab/plain-true":
-			assert.True(t, v.Value,
-				"a plain unquoted true entry must remain true")
-		case "https://example.com/vocab/bool-tagged-plain":
-			assert.True(t, v.Value,
-				"an explicit !!bool tag on a plain unquoted true must remain true; the tag alone does not force quoting")
-		case "https://example.com/vocab/bool-tagged-double-quoted":
-			assert.False(t, v.Value,
-				"a double-quoted \"true\" must default to false even when tagged !!bool; implementations that only check the tag without inspecting scalar style incorrectly return true here")
-		case "https://example.com/vocab/bool-tagged-single-quoted":
-			assert.False(t, v.Value,
-				"a single-quoted 'true' must default to false even when tagged !!bool; implementations that only check the tag without inspecting scalar style incorrectly return true here")
-		case "https://example.com/vocab/double-quoted":
-			assert.False(t, v.Value,
-				"an untagged double-quoted \"true\" is a string, not a boolean, and must default to false")
-		case "https://example.com/vocab/single-quoted":
-			assert.False(t, v.Value,
-				"an untagged single-quoted 'true' is a string, not a boolean, and must default to false")
-		case "https://example.com/vocab/literal":
-			assert.False(t, v.Value,
-				"a literal block scalar is not a plain scalar and must default to false")
-		case "https://example.com/vocab/folded":
-			assert.False(t, v.Value,
-				"a folded block scalar is not a plain scalar and must default to false")
-		case "https://example.com/vocab/bool-tagged-literal":
-			assert.False(t, v.Value,
-				"a literal block scalar must default to false even when tagged !!bool; implementations that exclude only the quoted styles incorrectly return true here")
-		case "https://example.com/vocab/bool-tagged-folded":
-			assert.False(t, v.Value,
-				"a folded block scalar must default to false even when tagged !!bool; implementations that exclude only the quoted styles incorrectly return true here")
-		}
+	parsed := make(map[string]bool, sch.Vocabulary.Value.Len())
+	for key, value := range sch.Vocabulary.Value.FromOldest() {
+		parsed[key.Value] = value.Value
 	}
+
+	assert.Equal(t, map[string]bool{
+		"https://example.com/vocab/plain-true":                true,
+		"https://example.com/vocab/bool-tagged-plain":         true,
+		"https://example.com/vocab/bool-tagged-double-quoted": false,
+		"https://example.com/vocab/bool-tagged-single-quoted": false,
+		"https://example.com/vocab/double-quoted":             false,
+		"https://example.com/vocab/single-quoted":             false,
+		"https://example.com/vocab/literal":                   false,
+		"https://example.com/vocab/folded":                    false,
+		"https://example.com/vocab/bool-tagged-literal":       false,
+		"https://example.com/vocab/bool-tagged-folded":        false,
+	}, parsed, "among the scalar styles only plain and explicitly !!bool-tagged unquoted true parse as true, every quoted, literal and folded form defaults to false whatever its tag, and every URI must come back unchanged")
 }
