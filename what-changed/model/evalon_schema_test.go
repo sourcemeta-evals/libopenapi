@@ -462,9 +462,10 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_Modified(t *testing.T) {
 		low.ClearHashCache()
 	}()
 
-	left := `openapi: "3.1.0"
+	buildDoc := func(title, nested string) string {
+		return `openapi: "3.1.0"
 info:
-  title: left
+  title: ` + title + `
   version: "1.0"
 components:
   schemas:
@@ -472,29 +473,69 @@ components:
       type: string
       contentMediaType: application/json
       contentSchema:
-        type: object`
+        ` + nested
+	}
 
-	right := `openapi: "3.1.0"
-info:
-  title: right
-  version: "1.0"
-components:
-  schemas:
-    Pet:
-      type: string
-      contentMediaType: application/json
-      contentSchema:
-        type: array`
+	cases := []struct {
+		name          string
+		left, right   string
+		property      string
+		original, new string
+	}{
+		{
+			name:     "nested type edit",
+			left:     "type: object",
+			right:    "type: array",
+			property: "type",
+			original: "object",
+			new:      "array",
+		},
+		{
+			name:     "nested description edit",
+			left:     "type: object\n        description: the decoded payload",
+			right:    "type: object\n        description: the decoded body",
+			property: "description",
+			original: "the decoded payload",
+			new:      "the decoded body",
+		},
+	}
 
-	leftDoc, rightDoc := test_BuildDoc(left, right)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			low.ClearHashCache()
+			leftDoc, rightDoc := test_BuildDoc(buildDoc("left", testCase.left), buildDoc("right", testCase.right))
 
-	lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
-	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
 
-	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
-	assert.NotNil(t, changes)
-	assert.NotNil(t, changes.ContentSchemaChanges)
-	assert.Equal(t, 1, changes.ContentSchemaChanges.TotalChanges())
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			require.NotNil(t, changes)
+			require.NotNil(t, changes.ContentSchemaChanges)
+			assert.Equal(t, 1, changes.ContentSchemaChanges.TotalChanges())
+
+			nested := changes.ContentSchemaChanges.GetAllChanges()
+			require.Len(t, nested, 1,
+				"the recursive comparison must report one record for the edited nested property")
+			assert.Equal(t, testCase.property, nested[0].Property,
+				"the nested record must name the property that changed, not the enclosing keyword")
+			assert.Equal(t, Modified, nested[0].ChangeType)
+			assert.Equal(t, testCase.original, nested[0].Original,
+				"the nested record must carry the left value of the edited property")
+			assert.Equal(t, testCase.new, nested[0].New,
+				"the nested record must carry the right value of the edited property")
+
+			found := false
+			for _, change := range changes.GetAllChanges() {
+				if change.Property == testCase.property &&
+					change.Original == testCase.original && change.New == testCase.new {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found,
+				"the nested record must also surface through the enclosing aggregate accessor")
+		})
+	}
 }
 
 // TestCompareSchemas_Vocabulary_Added tests $vocabulary entry addition detection
