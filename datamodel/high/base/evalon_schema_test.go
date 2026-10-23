@@ -72,7 +72,8 @@ $comment: an example comment
 contentSchema:
   type: array
 $vocabulary:
-  https://example.com/vocab/core: true`
+  https://example.com/vocab/core: true
+  https://example.com/vocab/extra: false`
 
 	highSchema := getHighSchema(t, yml)
 
@@ -118,5 +119,28 @@ $vocabulary:
 		_, present := jsonRoot[key]
 		assert.False(t, present,
 			"JSON root map must not contain the alias key %q", key)
+	}
+
+	// Both outputs must carry the values, not just the keys: a renderer that
+	// emits an empty comment, an empty nested schema or an empty vocabulary
+	// would satisfy key presence alone.
+	for _, output := range []struct {
+		format string
+		root   map[string]any
+	}{{"YAML", yamlRoot}, {"JSON", jsonRoot}} {
+		assert.Equal(t, "an example comment", output.root["$comment"],
+			"%s output must carry the comment text", output.format)
+
+		contentSchema, ok := output.root["contentSchema"].(map[string]any)
+		require.True(t, ok, "%s output must carry contentSchema as a mapping", output.format)
+		assert.Equal(t, "array", contentSchema["type"],
+			"%s output must carry the nested contentSchema type", output.format)
+
+		vocabulary, ok := output.root["$vocabulary"].(map[string]any)
+		require.True(t, ok, "%s output must carry $vocabulary as a mapping", output.format)
+		assert.Equal(t, true, vocabulary["https://example.com/vocab/core"],
+			"%s output must carry the true vocabulary entry", output.format)
+		assert.Equal(t, false, vocabulary["https://example.com/vocab/extra"],
+			"%s output must carry the false vocabulary entry", output.format)
 	}
 }
