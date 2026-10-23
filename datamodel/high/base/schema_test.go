@@ -1907,3 +1907,27 @@ description: A schema without $id`
 
 	assert.Equal(t, "", highSch.Id)
 }
+
+// TestSchema_ContentFamilyProjection verifies that contentEncoding and
+// contentMediaType reach the high-level Schema and render under their exact
+// keys, and that both stay at their zero values when the source omits them
+func TestSchema_ContentFamilyProjection(t *testing.T) {
+	populated := getHighSchema(t, `type: string
+contentEncoding: base64
+contentMediaType: application/json`)
+
+	assert.Equal(t, "base64", populated.ContentEncoding)
+	assert.Equal(t, "application/json", populated.ContentMediaType)
+
+	rendered, err := populated.Render()
+	assert.NoError(t, err)
+
+	var root map[string]any
+	assert.NoError(t, yaml.Unmarshal(rendered, &root))
+	assert.Equal(t, "base64", root["contentEncoding"])
+	assert.Equal(t, "application/json", root["contentMediaType"])
+
+	empty := getHighSchema(t, `type: string`)
+	assert.Equal(t, "", empty.ContentEncoding)
+	assert.Equal(t, "", empty.ContentMediaType)
+}
