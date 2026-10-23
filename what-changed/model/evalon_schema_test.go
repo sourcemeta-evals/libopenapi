@@ -171,7 +171,12 @@ components:
 	assert.True(t, found, "Should find $comment property change")
 }
 
-// TestCompareSchemas_Comment_NoChange tests identical $comment produces no changes
+// TestEvalonGolden_CompareSchemas_Comment_NoChange asserts that an equal
+// $comment on both sides emits no change record for the keyword. The two sides
+// differ in an unrelated description so the comparison reaches the keyword
+// instead of returning at the outer hash-equality shortcut. This complements
+// the Added/Removed/Modified cases and closes the four-branch transition
+// matrix for $comment.
 func TestEvalonGolden_CompareSchemas_Comment_NoChange(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
@@ -189,6 +194,7 @@ components:
   schemas:
     Pet:
       $comment: "Same comment"
+      description: left hand side
       type: object`
 
 	right := `openapi: "3.1.0"
@@ -199,6 +205,7 @@ components:
   schemas:
     Pet:
       $comment: "Same comment"
+      description: right hand side
       type: object`
 
 	leftDoc, rightDoc := test_BuildDoc(left, right)
@@ -207,7 +214,13 @@ components:
 	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
-	assert.Nil(t, changes)
+	require.NotNil(t, changes, "the unrelated description change must be reported")
+	assert.Equal(t, 1, changes.TotalChanges(),
+		"only the unrelated description change may be reported")
+	for _, change := range changes.GetAllChanges() {
+		assert.NotEqual(t, PropComment, change.Property,
+			"an equal $comment on both sides must not emit a change record")
+	}
 }
 
 // TestCompareSchemas_ContentSchema_Added tests contentSchema addition detection
