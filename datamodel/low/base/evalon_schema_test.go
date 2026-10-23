@@ -146,6 +146,39 @@ description: A regular schema without $vocabulary`
 // `$vocabulary` value which is a scalar rather than a YAML mapping is
 // ignored entirely, leaving the vocabulary unset instead of producing an
 // empty or garbage map.
+// TestEvalonGolden_Schema_Vocabulary_PreservesExistingSourceNodes asserts that
+// parsing `$vocabulary` leaves the source nodes collected for the rest of the
+// schema in place. A JSON document on a single line puts every key on the same
+// line, where the node map holds one entry per line, so a parser that replaces
+// that entry instead of appending to it destroys the positions of the keys
+// parsed before it. Registering the vocabulary nodes is optional; losing the
+// ones already collected is not.
+func TestEvalonGolden_Schema_Vocabulary_PreservesExistingSourceNodes(t *testing.T) {
+	yml := `{"type":"object","$comment":"a note","$vocabulary":{"https://example.com/vocab/core":true}}`
+
+	var idxNode yaml.Node
+	_ = yaml.Unmarshal([]byte(yml), &idxNode)
+
+	var sch Schema
+	err := low.BuildModel(idxNode.Content[0], &sch)
+	assert.NoError(t, err)
+
+	err = sch.Build(context.Background(), idxNode.Content[0], nil)
+	assert.NoError(t, err)
+
+	values := make(map[string]bool)
+	for _, nodes := range sch.GetNodes() {
+		for _, node := range nodes {
+			values[node.Value] = true
+		}
+	}
+
+	for _, expected := range []string{"type", "object", "$comment", "a note", "$vocabulary"} {
+		assert.True(t, values[expected],
+			"the node map must keep the %q node collected before $vocabulary was parsed", expected)
+	}
+}
+
 func TestEvalonGolden_Schema_Vocabulary_NonMapScalarIgnored(t *testing.T) {
 	yml := `type: object
 $vocabulary: true`
