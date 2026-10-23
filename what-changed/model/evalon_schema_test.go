@@ -979,22 +979,47 @@ func TestEvalonGolden_SchemaChanges_MarshalJSONYAML_NewContainers(t *testing.T) 
 	}
 
 	jsonBytes, err := json.Marshal(sc)
-	assert.NoError(t, err, "SchemaChanges must marshal to JSON without error")
-	jsonOutput := string(jsonBytes)
-	assert.Contains(t, jsonOutput, `"$vocabulary"`,
-		"JSON output must use $vocabulary as the container key")
-	assert.Contains(t, jsonOutput, `"contentSchema"`,
-		"JSON output must use contentSchema as the container key")
-	assert.NotContains(t, strings.ReplaceAll(jsonOutput, "$vocabulary", ""), `"vocabulary"`,
+	require.NoError(t, err, "SchemaChanges must marshal to JSON without error")
+
+	// decode into a root map so the container keys are read as keys, rather
+	// than matched anywhere in the output where a nested record's property
+	// text would satisfy the same search
+	var decodedJSON map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &decodedJSON),
+		"the JSON output must decode into a root mapping")
+	require.Contains(t, decodedJSON, "$vocabulary",
+		"JSON output must use $vocabulary as a top-level container key")
+	require.Contains(t, decodedJSON, "contentSchema",
+		"JSON output must use contentSchema as a top-level container key")
+	assert.NotContains(t, decodedJSON, "vocabulary",
 		"JSON output must NOT use plain vocabulary (must retain the leading $)")
 
+	jsonVocabulary, isList := decodedJSON["$vocabulary"].([]any)
+	require.True(t, isList, "the JSON $vocabulary container must hold the record list")
+	assert.Len(t, jsonVocabulary, 1, "the JSON $vocabulary container must hold every record")
+	jsonContentSchema, isMapping := decodedJSON["contentSchema"].(map[string]any)
+	require.True(t, isMapping, "the JSON contentSchema container must hold the nested changes")
+	assert.NotEmpty(t, jsonContentSchema, "the JSON contentSchema container must carry the nested records")
+
 	yamlBytes, err := yaml.Marshal(sc)
-	assert.NoError(t, err, "SchemaChanges must marshal to YAML without error")
-	yamlOutput := string(yamlBytes)
-	assert.Contains(t, yamlOutput, "$vocabulary:",
-		"YAML output must use $vocabulary as the container key")
-	assert.Contains(t, yamlOutput, "contentSchema:",
-		"YAML output must use contentSchema as the container key")
+	require.NoError(t, err, "SchemaChanges must marshal to YAML without error")
+
+	var decodedYAML map[string]any
+	require.NoError(t, yaml.Unmarshal(yamlBytes, &decodedYAML),
+		"the YAML output must decode into a root mapping")
+	require.Contains(t, decodedYAML, "$vocabulary",
+		"YAML output must use $vocabulary as a top-level container key")
+	require.Contains(t, decodedYAML, "contentSchema",
+		"YAML output must use contentSchema as a top-level container key")
+	assert.NotContains(t, decodedYAML, "vocabulary",
+		"YAML output must NOT use plain vocabulary (must retain the leading $)")
+
+	yamlVocabulary, isList := decodedYAML["$vocabulary"].([]any)
+	require.True(t, isList, "the YAML $vocabulary container must hold the record list")
+	assert.Len(t, yamlVocabulary, 1, "the YAML $vocabulary container must hold every record")
+	yamlContentSchema, isMapping := decodedYAML["contentSchema"].(map[string]any)
+	require.True(t, isMapping, "the YAML contentSchema container must hold the nested changes")
+	assert.NotEmpty(t, yamlContentSchema, "the YAML contentSchema container must carry the nested records")
 }
 
 // TestCheckVocabularyChanges_TransitionMatrix exhaustively exercises the
@@ -1230,8 +1255,10 @@ components:
 
 // TestEvalonGolden_CompareSchemas_ContentSchema_NoChange asserts that
 // identical contentSchema values on both sides emit no change record for
-// contentSchema. This complements the Added/Removed/Modified cases and
-// closes the four-branch transition matrix for contentSchema.
+// contentSchema and no nested container. The two sides differ in an unrelated
+// description so the comparison reaches the keyword instead of returning at
+// the outer hash-equality shortcut. This complements the Added/Removed/Modified
+// cases and closes the four-branch transition matrix for contentSchema.
 func TestEvalonGolden_CompareSchemas_ContentSchema_NoChange(t *testing.T) {
 	ResetDefaultBreakingRules()
 	ResetActiveBreakingRulesConfig()
@@ -1249,6 +1276,7 @@ components:
   schemas:
     Pet:
       type: string
+      description: left hand side
       contentMediaType: application/json
       contentSchema:
         type: object`
@@ -1261,6 +1289,7 @@ components:
   schemas:
     Pet:
       type: string
+      description: right hand side
       contentMediaType: application/json
       contentSchema:
         type: object`
@@ -1271,13 +1300,14 @@ components:
 	rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
 
 	changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
-	if changes != nil {
-		assert.Nil(t, changes.ContentSchemaChanges,
-			"identical contentSchema values must not emit a nested change container")
-		for _, change := range changes.GetAllChanges() {
-			assert.NotEqual(t, PropContentSchema, change.Property,
-				"identical contentSchema values must not emit a change record")
-		}
+	require.NotNil(t, changes, "the unrelated description change must be reported")
+	assert.Nil(t, changes.ContentSchemaChanges,
+		"identical contentSchema values must not emit a nested change container")
+	assert.Equal(t, 1, changes.TotalChanges(),
+		"only the unrelated description change may be reported")
+	for _, change := range changes.GetAllChanges() {
+		assert.NotEqual(t, PropContentSchema, change.Property,
+			"identical contentSchema values must not emit a change record")
 	}
 }
 
@@ -1613,7 +1643,7 @@ components:
 		assert.NotNil(t, addedRecord.Context,
 			"added vocabulary record must carry a non-nil Context")
 		if addedRecord.Context != nil {
-			assert.NotNil(t, addedRecord.Context.NewLine,
+			assert.Equal(t, 10, *addedRecord.Context.NewLine,
 				"added vocabulary record must carry Context.NewLine referencing the right-hand source line")
 			assert.Nil(t, addedRecord.Context.OriginalLine,
 				"added vocabulary record must have nil Context.OriginalLine (no left-hand source)")
@@ -1626,7 +1656,7 @@ components:
 		assert.NotNil(t, removedRecord.Context,
 			"removed vocabulary record must carry a non-nil Context")
 		if removedRecord.Context != nil {
-			assert.NotNil(t, removedRecord.Context.OriginalLine,
+			assert.Equal(t, 10, *removedRecord.Context.OriginalLine,
 				"removed vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
 			assert.Nil(t, removedRecord.Context.NewLine,
 				"removed vocabulary record must have nil Context.NewLine (no right-hand source)")
@@ -1639,9 +1669,9 @@ components:
 		assert.NotNil(t, modifiedRecord.Context,
 			"modified vocabulary record must carry a non-nil Context")
 		if modifiedRecord.Context != nil {
-			assert.NotNil(t, modifiedRecord.Context.OriginalLine,
+			assert.Equal(t, 11, *modifiedRecord.Context.OriginalLine,
 				"modified vocabulary record must carry Context.OriginalLine referencing the left-hand source line")
-			assert.NotNil(t, modifiedRecord.Context.NewLine,
+			assert.Equal(t, 11, *modifiedRecord.Context.NewLine,
 				"modified vocabulary record must carry Context.NewLine referencing the right-hand source line")
 		}
 	}

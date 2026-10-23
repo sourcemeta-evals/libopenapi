@@ -411,11 +411,13 @@ $vocabulary:
 // that $vocabulary values whose scalar carries a non-plain YAML style (single
 // quotes, double quotes, or an explicit `!!bool`-with-quotes combination)
 // silently default to `false`, while plain lowercase `true` and its explicit
-// `!!bool true` unquoted-tagged counterpart both remain `true`. This locks in
-// the "canonical JSON boolean scalar" contract by pinning the two failure
-// modes an implementation can drift into: accepting any bool-tagged value
-// without checking the scalar's style, or accepting any quoted `"true"`
-// regardless of tag.
+// `!!bool true` unquoted-tagged counterpart both remain `true`. Literal and
+// folded block scalars carrying the same text, tagged and untagged, default to
+// `false` for the same reason. This locks in the "canonical JSON boolean
+// scalar" contract by pinning the failure modes an implementation can drift
+// into: accepting any bool-tagged value without checking the scalar's style,
+// accepting any quoted `"true"` regardless of tag, or excluding only the two
+// quoted styles and letting a block scalar through.
 func TestEvalonGolden_Schema_Vocabulary_QuotedBoolFormsDefaultToFalse(t *testing.T) {
 	yml := `type: object
 $vocabulary:
@@ -424,7 +426,15 @@ $vocabulary:
   "https://example.com/vocab/bool-tagged-double-quoted": !!bool "true"
   "https://example.com/vocab/bool-tagged-single-quoted": !!bool 'true'
   "https://example.com/vocab/double-quoted": "true"
-  "https://example.com/vocab/single-quoted": 'true'`
+  "https://example.com/vocab/single-quoted": 'true'
+  "https://example.com/vocab/literal": |-
+    true
+  "https://example.com/vocab/folded": >-
+    true
+  "https://example.com/vocab/bool-tagged-literal": !!bool |-
+    true
+  "https://example.com/vocab/bool-tagged-folded": !!bool >-
+    true`
 
 	var idxNode yaml.Node
 	_ = yaml.Unmarshal([]byte(yml), &idxNode)
@@ -437,7 +447,7 @@ $vocabulary:
 	assert.NoError(t, err, "Schema.Build must succeed on the $vocabulary fixture and not error on a quoted scalar")
 
 	assert.NotNil(t, sch.Vocabulary.Value, "Vocabulary must be populated")
-	assert.Equal(t, 6, sch.Vocabulary.Value.Len())
+	assert.Equal(t, 10, sch.Vocabulary.Value.Len())
 
 	for k, v := range sch.Vocabulary.Value.FromOldest() {
 		switch k.Value {
@@ -459,6 +469,18 @@ $vocabulary:
 		case "https://example.com/vocab/single-quoted":
 			assert.False(t, v.Value,
 				"an untagged single-quoted 'true' is a string, not a boolean, and must default to false")
+		case "https://example.com/vocab/literal":
+			assert.False(t, v.Value,
+				"a literal block scalar is not a plain scalar and must default to false")
+		case "https://example.com/vocab/folded":
+			assert.False(t, v.Value,
+				"a folded block scalar is not a plain scalar and must default to false")
+		case "https://example.com/vocab/bool-tagged-literal":
+			assert.False(t, v.Value,
+				"a literal block scalar must default to false even when tagged !!bool; implementations that exclude only the quoted styles incorrectly return true here")
+		case "https://example.com/vocab/bool-tagged-folded":
+			assert.False(t, v.Value,
+				"a folded block scalar must default to false even when tagged !!bool; implementations that exclude only the quoted styles incorrectly return true here")
 		}
 	}
 }
