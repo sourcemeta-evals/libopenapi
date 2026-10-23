@@ -24,6 +24,7 @@ func TestEvalonGolden_CompareSchemas_Comment_Added(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -75,6 +76,7 @@ func TestEvalonGolden_CompareSchemas_Comment_Removed(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -126,6 +128,7 @@ func TestEvalonGolden_CompareSchemas_Comment_Modified(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -184,6 +187,7 @@ func TestEvalonGolden_CompareSchemas_Comment_NoChange(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -231,6 +235,7 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_Added(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -289,6 +294,7 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_Removed(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -347,6 +353,7 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_Modified(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -392,6 +399,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_Added(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -438,6 +446,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_Removed(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -484,6 +493,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_Modified(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -529,6 +539,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_NoChange(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -570,6 +581,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_AddedFromNil(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -611,6 +623,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_RemovedToNil(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -649,6 +662,9 @@ components:
 // The schemas differ only on `$comment` so `CompareSchemas` returns a non-nil
 // aggregate we can inspect for the absence of vocabulary records.
 func TestEvalonGolden_CompareSchemas_Vocabulary_BothAbsent(t *testing.T) {
+	low.ClearHashCache()
+	defer low.ClearHashCache()
+
 	left := `openapi: "3.1.0"
 info:
   title: left
@@ -688,6 +704,7 @@ func TestEvalonGolden_CompareSchemas_Vocabulary_MultipleChanges(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -737,6 +754,7 @@ func TestEvalonGolden_GetAllChanges_IncludesContentSchemaAndVocabulary(t *testin
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -813,6 +831,7 @@ func TestEvalonGolden_CheckVocabularyChanges_DeterministicOrdering(t *testing.T)
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	buildDoc := func(entries [][2]string) string {
@@ -1051,6 +1070,7 @@ func TestEvalonGolden_CheckVocabularyChanges_TransitionMatrix(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	// Build an OpenAPI doc whose Pet schema (optionally) carries the given
@@ -1279,6 +1299,7 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_NoChange(t *testing.T) {
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -1593,6 +1614,7 @@ func TestEvalonGolden_CheckVocabularyChanges_PreservesSourceContext(t *testing.T
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"
@@ -1705,6 +1727,7 @@ func TestEvalonGolden_CompareSchemas_ContentSchema_NestedBreakingAggregated(t *t
 	defer func() {
 		ResetActiveBreakingRulesConfig()
 		ResetDefaultBreakingRules()
+		low.ClearHashCache()
 	}()
 
 	left := `openapi: "3.1.0"

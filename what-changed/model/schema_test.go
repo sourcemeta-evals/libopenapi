@@ -5161,6 +5161,7 @@ components:
 // description to $comment reports both changes
 func TestCompareSchemas_NewKeywordReplaced(t *testing.T) {
 	low.ClearHashCache()
+	defer low.ClearHashCache()
 
 	left := `openapi: "3.1.0"
 components:
