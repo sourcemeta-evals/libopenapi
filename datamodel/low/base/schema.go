@@ -914,15 +914,12 @@ func (s *Schema) Build(ctx context.Context, root *yaml.Node, idx *index.SpecInde
 				currentKey = node
 				continue
 			}
-			// $vocabulary values must be canonical JSON boolean scalars (unquoted
-			// `true` or `false`, either bare or explicitly `!!bool`-tagged so long
-			// as the scalar itself remains plain). Non-boolean scalars (numbers,
-			// strings, quoted booleans), block-style scalars (literal `|` or
-			// folded `>`), and alternative YAML boolean spellings like `TRUE`,
-			// `yes`, `on` are silently treated as false per the task contract.
+			// $vocabulary values must be boolean scalars; anything else, such as
+			// a number, a string or an alternative YAML boolean spelling like
+			// `TRUE` or `yes`, is silently treated as false per the task
+			// contract.
 			var boolVal bool
-			nonPlainStyles := yaml.SingleQuotedStyle | yaml.DoubleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
-			if utils.IsNodeBoolValue(node) && node.Style&nonPlainStyles == 0 && node.Value == "true" {
+			if utils.IsNodeBoolValue(node) && node.Value == "true" {
 				boolVal = true
 			}
 			vocabularyMap.Set(low.KeyReference[string]{
