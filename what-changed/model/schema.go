@@ -2022,7 +2022,6 @@ func getNodeForProperty(depMap *orderedmap.Map[low.KeyReference[string], low.Val
 }
 
 // checkVocabularyChanges compares $vocabulary maps and returns a list of changes.
-// the caller is responsible for appending the returned changes to their main changes slice.
 func checkVocabularyChanges(lVocab, rVocab *orderedmap.Map[low.KeyReference[string], low.ValueReference[bool]]) []*Change {
 	if lVocab == nil && rVocab == nil {
 		return nil
