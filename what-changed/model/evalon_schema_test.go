@@ -1745,6 +1745,71 @@ components:
 			}
 		})
 	}
+
+	// a $comment carried by a contentSchema keeps its own polarity: the
+	// enclosing keyword being breaking does not reclassify a
+	// documentation-only record emitted by the recursive comparison
+	nestedDoc := func(comment string) string {
+		doc := `openapi: "3.1.0"
+info:
+  title: t
+  version: "1.0"
+components:
+  schemas:
+    Pet:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object
+`
+		if comment != "" {
+			doc += "        $comment: " + comment + "\n"
+		}
+		return doc
+	}
+
+	nested := []struct {
+		name        string
+		left, right string
+	}{
+		{name: "nested $comment added", right: "note"},
+		{name: "nested $comment removed", left: "note"},
+		{name: "nested $comment modified", left: "note", right: "other"},
+	}
+
+	for _, testCase := range nested {
+		t.Run(testCase.name, func(t *testing.T) {
+			low.ClearHashCache()
+			defer low.ClearHashCache()
+			leftDoc, rightDoc := test_BuildDoc(nestedDoc(testCase.left), nestedDoc(testCase.right))
+			lSchemaProxy := leftDoc.Components.Value.FindSchema("Pet").Value
+			rSchemaProxy := rightDoc.Components.Value.FindSchema("Pet").Value
+
+			changes := CompareSchemas(lSchemaProxy, rSchemaProxy)
+			require.NotNil(t, changes, "the comparison must report the nested transition")
+			require.NotNil(t, changes.ContentSchemaChanges,
+				"a change inside a contentSchema present on both sides belongs in its nested container")
+
+			commentRecords := 0
+			for _, change := range changes.ContentSchemaChanges.GetAllChanges() {
+				if change.Property != base.CommentLabel {
+					continue
+				}
+				commentRecords++
+				assert.False(t, change.Breaking,
+					"a $comment record keeps its documentation-only polarity inside a contentSchema")
+			}
+			assert.Equal(t, 1, commentRecords,
+				"the recursive comparison must report the comment transition once")
+
+			for _, change := range changes.GetAllChanges() {
+				if change.Property == base.CommentLabel {
+					assert.False(t, change.Breaking,
+						"the record must stay non-breaking where the enclosing aggregate accessor exposes it")
+				}
+			}
+		})
+	}
 }
 
 // TestEvalonGolden_CheckVocabularyChanges_PreservesSourceContext asserts that
